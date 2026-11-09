@@ -1,0 +1,67 @@
+{
+  "me_cookie_no_aid": {
+    "status_code": 1000006,
+    "status_info": {
+      "now": 1794212454,
+      "status_msg": "ERR_REQUEST_FORBIDDEN",
+      "now_ts_ms": 1794212454735
+    }
+  },
+  "playlist_cookie_no_aid": {
+    "status_code": 1000006,
+    "status_info": {
+      "now": 1794212454,
+      "status_msg": "ERR_REQUEST_FORBIDDEN",
+      "now_ts_ms": 1794212454878
+    }
+  },
+  "playlist_anon_private": {
+    "status_code": 1000005,
+    "status_info": {
+      "now": 1794212455,
+      "status_msg": "ERR_RESOURCE_NOT_FOUND",
+      "now_ts_ms": 1794212455184
+    }
+  },
+  "comments_bad_grouptype": {
+    "status_code": 1000004,
+    "status_info": {
+      "now": 1794212455,
+      "status_msg": "ERR_INVALID_PARAM",
+      "now_ts_ms": 1794212455297
+    }
+  },
+  "http_404": "404 Page not found",
+  "app_song_tab_forbidden": {
+    "status_code": 1000006,
+    "status_info": {
+      "now": 1794212455,
+      "status_msg": "当前设备无法访问",
+      "now_ts_ms": 1794212455561
+    }
+  },
+  "me_no_cookie": {
+    "status_code": 1000016,
+    "status_info": {
+      "now": 1794212455,
+      "status_msg": "登录状态已失效，请重新登录",
+      "now_ts_ms": 1794212455684
+    }
+  },
+  "playlist_no_cookie_private": {
+    "status_code": 1000005,
+    "status_info": {
+      "now": 1794212455,
+      "status_msg": "ERR_RESOURCE_NOT_FOUND",
+      "now_ts_ms": 1794212455951
+    }
+  },
+  "track_v2_get_bad_id": {
+    "status_code": 1000005,
+    "status_info": {
+      "now": 1794212456,
+      "status_msg": "ERR_RESOURCE_NOT_FOUND",
+      "now_ts_ms": 1794212456089
+    }
+  }
+}

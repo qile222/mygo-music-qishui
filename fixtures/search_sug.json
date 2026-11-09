@@ -1,0 +1,30 @@
+{
+  "status_info": {
+    "now": 1794211871,
+    "now_ts_ms": 1794211871297
+  },
+  "sugs": [
+    {
+      "suggestion": "薛之谦",
+      "content_type": "artist",
+      "entity": {
+        "artist": {
+          "id": "6807264292040083458"
+        }
+      },
+      "group_id": "6862102887615959503"
+    },
+    {
+      "suggestion": "薛之嫌的歌曲",
+      "content_type": "playlist",
+      "entity": {
+        "playlist": {
+          "id": "7452201780022132787",
+          "type": 0,
+          "from_feed": false
+        }
+      },
+      "group_id": "4458524745424855178"
+    }
+  ]
+}

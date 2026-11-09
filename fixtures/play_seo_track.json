@@ -1,0 +1,220 @@
+{
+  "status_info": {
+    "now": 1794211951,
+    "now_ts_ms": 1794211951890
+  },
+  "seo_track": {
+    "track": {
+      "id": "6804654043412039682",
+      "name": "多远都要在一起",
+      "duration": 216973,
+      "media_type": "track",
+      "vid": "examplevid0005",
+      "state": {},
+      "stats": {
+        "count_collected": 9339943,
+        "count_comment": 1234,
+        "count_shared": 244895
+      },
+      "preview": {
+        "duration": 60047,
+        "start": 60000,
+        "vid": "examplevid0019",
+        "bit_rates": [
+          {
+            "br": 68430,
+            "size": 513227,
+            "quality": "medium"
+          },
+          {
+            "br": 132437,
+            "size": 993280,
+            "quality": "higher"
+          },
+          {
+            "br": 260480,
+            "size": 1953604,
+            "quality": "highest"
+          }
+        ]
+      },
+      "label_info": {
+        "only_vip_download": true,
+        "only_vip_playable": true,
+        "quality_only_vip_can_download": [
+          "medium",
+          "higher",
+          "highest",
+          "lossless"
+        ],
+        "quality_only_vip_can_play": [
+          "lossless"
+        ],
+        "is_original": true,
+        "quality_map": {
+          "higher": {
+            "play_detail": {
+              "condition": "benefit_play_higher",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_higher",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "highest": {
+            "play_detail": {
+              "condition": "benefit_play_highest",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_highest",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "lossless": {
+            "play_detail": {
+              "condition": "benefit_play_lossless",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_lossless",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "spatial": {
+            "play_detail": {
+              "condition": "benefit_play_spatial",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_spatial",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "hi_res": {
+            "play_detail": {
+              "condition": "benefit_play_hi_res",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": null
+          },
+          "medium": {
+            "play_detail": {
+              "condition": "benefit_play_medium",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_medium",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          }
+        }
+      },
+      "bit_rates": [
+        {
+          "br": 66141,
+          "size": 1793854,
+          "quality": "medium"
+        },
+        {
+          "br": 132178,
+          "size": 3585674,
+          "quality": "higher"
+        }
+      ],
+      "audition_info": {
+        "vid": "examplevid0019",
+        "start_time_ms": 60000,
+        "duration_ms": 60047
+      },
+      "limited_free_info": {
+        "queue_types": [],
+        "expire_time": 0,
+        "sign": "",
+        "sign_version": "",
+        "limited_free_type": "",
+        "rewind_prev_intercept_type": "",
+        "intercept_type": ""
+      },
+      "playable_range": {
+        "duration": 72384,
+        "start": 60000
+      },
+      "album": {
+        "id": "7089013167954593793",
+        "name": "新的心跳",
+        "release_date": 1446739200,
+        "url_cover": {
+          "uri": "<cover-uri-album-1>",
+          "urls": [
+            "https://example.invalid/cover.jpg",
+            "https://example.invalid/cover.jpg"
+          ],
+          "template_prefix": "tplv-b829550vbb"
+        },
+        "url_player_bg": {
+          "uri": "<cover-uri-album-1>",
+          "urls": [
+            "https://example.invalid/cover.jpg",
+            "https://example.invalid/cover.jpg"
+          ],
+          "template": "background:${width}:${height}:30:90:0",
+          "template_prefix": "tplv-b829550vbb"
+        }
+      },
+      "artists": [
+        {
+          "id": "6761698620967225345",
+          "name": "G.E.M. 邓紫棋",
+          "url_avatar": {
+            "uri": "tos-cn-v-2774c002/ce76f3342bd84133981dbe117c7690d9",
+            "urls": [
+              "https://example.invalid/cover.jpg",
+              "https://example.invalid/cover.jpg"
+            ],
+            "template_prefix": "tplv-b829550vbb"
+          },
+          "simple_display_name": "G.E.M. 邓紫棋"
+        }
+      ]
+    },
+    "genre_tag": "流行",
+    "already_upload": true,
+    "seo_url": {
+      "pc_url": {
+        "urls": [
+          "https://www.douyin.com/qishui/song/6804654043412039682"
+        ]
+      },
+      "m_url": {
+        "urls": [
+          "m.douyin.com/qishui/song/6804654043412039682"
+        ]
+      }
+    },
+    "create_time": 1726096008,
+    "update_time": 1794177784
+  },
+  "track_player": {
+    "expire_at": 1794298351,
+    "media_id": "examplevid0019",
+    "url_player_info": "https://example.invalid/redacted-audio.m4a?<signature>",
+    "video_model_type": 2,
+    "video_model": "{\"status\": 10, \"message\": \"success\", \"version\": 3, \"video_id\": \"examplevid0020\", \"enable_ssl\": true, \"video_duration\": 60.001, \"media_type\": \"audio\", \"url_expire\": 1794302011, \"video_list\": [{\"main_url\": \"https://example.invalid/redacted-audio.m4a?<signature>\", \"backup_url\": \"https://example.invalid/redacted-audio.m4a?<signature>\", \"video_meta\": {\"quality\": \"highest\", \"vtype\": \"m4a\", \"bitrate\": 257699, \"codec_type\": \"aac\", \"size\": 1932775, \"file_id\": \"8eb4b7217475453c1b92bcad3a925528\", \"file_hash\": \"1da2b4f0b06a07232449457d6c610c2f\", \"real_bitrate\": 257699, \"audio_sample_rate\": \"44100\"}, \"gear_des_key\": \"0:M4A|1:audio|2:aac|5:highest|10000:105\"}, {\"main_url\": \"https://example.invalid/redacted-audio.m4a?<signature>\", \"backup_url\": \"https://example.invalid/redacted-audio.m4a?<signature>\", \"video_meta\": {\"quality\": \"higher\", \"vtype\": \"m4a\", \"bitrate\": 129657, \"codec_type\": \"aac\", \"size\": 972451, \"file_id\": \"652dca8eff57d661743b109c7c41b511\", \"file_hash\": \"5aa73848f23f487d2cefd9078349ce3b\", \"real_bitrate\": 129657, \"audio_sample_rate\": \"44100\"}, \"gear_des_key\": \"0:M4A|1:audio|2:aac|5:higher|10000:105\"}, {\"main_url\": \"https://example.invalid/redacted-audio.m4a?<signature>\", \"backup_url\": \"https://example.invalid/redacted-audio.m4a?<signature>\", \"video_meta\": {\"quality\": \"medium\", \"vtype\": \"m4a\", \"bitrate\": 65651, \"codec_type\": \"aac\", \"size\": 492398, \"file_id\": \"dfc5ca4193714d2dd9ac88c1e53df46b\", \"file_hash\": \"aa6debed01e42c5e10d13fec95a25d65\", \"real_bitrate\": 65651, \"audio_sample_rate\": \"44100\"}, \"gear_des_key\": \"0:M4A|1:audio|2:aac|5:medium|10000:105\"}], \"volume\": {\"loudness\": -8, \"peak\": 1, \"volume_info_json\": \"{\\\"Loudness\\\":-8,\\\"Peak\\\":1}\"}}"
+  },
+  "lyric": {
+    "type": "krc"
+  }
+}

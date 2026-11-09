@@ -1,0 +1,55 @@
+{
+  "id": "qishui",
+  "name": "汽水音乐",
+  "version": "0.5.1",
+  "minAppVersion": "0.1.22",
+  "main": "index.js",
+  "playback": "stream",
+  "permissions": {
+    "network": [
+      "api.qishui.com",
+      "*.qishui.com",
+      "beta-luna.douyin.com",
+      "*.douyin.com",
+      "*.douyinpic.com",
+      "*.douyinvod.com",
+      "*.douyincdn.com"
+    ],
+    "process": [
+      "/usr/bin/base64",
+      "/usr/bin/env"
+    ]
+  },
+  "navigation": [
+    {
+      "builtin": "home",
+      "title": "首页",
+      "icon": "home"
+    },
+    {
+      "page": "discover",
+      "title": "发现",
+      "icon": "star"
+    },
+    {
+      "page": "charts",
+      "title": "榜单",
+      "icon": "chart"
+    },
+    {
+      "builtin": "liked",
+      "title": "我喜欢",
+      "icon": "heart"
+    },
+    {
+      "builtin": "savedAlbums",
+      "title": "收藏专辑",
+      "icon": "album"
+    },
+    {
+      "page": "history",
+      "title": "最近播放",
+      "icon": "calendar"
+    }
+  ]
+}

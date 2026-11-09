@@ -1,0 +1,86 @@
+{
+  "status_info": {
+    "now": 1794212456,
+    "now_ts_ms": 1794212456695
+  },
+  "blocks": [
+    {
+      "type": "discover_playlist_mix",
+      "title": "为你推荐，每天来点新模式",
+      "inner_block": [
+        {
+          "type": "discover_radio",
+          "title": "热情布鲁斯",
+          "inner_block_id": "7408841207004184603",
+          "resources": [
+            {
+              "resource_id": "7408841207004184603",
+              "type": "radio",
+              "style": {
+                "title": "热情布鲁斯",
+                "desc": "热情奔放的布鲁斯节奏",
+                "link": "luna://luna.com/play_source?queue_id=7408841207004184603&queue_type=radio&queue_name=%E7%83%AD%E6%83%85%E5%B8%83%E9%B2%81%E6%96%AF&sub_queue_type=%E7%83%AD%E6%83%85%E5%B8%83%E9%B2%81%E6%96%AF_7408841207004184603&flow_type=2",
+                "type": 5,
+                "cover_color": {
+                  "dominant_color": {
+                    "rgb": "374A15"
+                  },
+                  "base_five_color": {
+                    "rgb": "465729"
+                  }
+                },
+                "cover_url_list": [
+                  {
+                    "uri": "tos-cn-v-2774c002/043725bc70cc4e05bc9c36d3cf9919a7",
+                    "urls": [
+                      "https://p3-luna.douyinpic.com/img/",
+                      "https://p6-luna.douyinpic.com/img/"
+                    ],
+                    "template_prefix": "tplv-b829550vbb"
+                  }
+                ],
+                "passthrough": "{\"radio_inner_rec_type\":0}"
+              }
+            }
+          ]
+        },
+        {
+          "type": "discover_radio",
+          "title": "英国男歌手",
+          "inner_block_id": "7408841207247437875",
+          "resources": [
+            {
+              "resource_id": "7408841207247437875",
+              "type": "radio",
+              "style": {
+                "title": "英国男歌手",
+                "desc": "男歌手精选",
+                "link": "luna://luna.com/play_source?queue_id=7408841207247437875&queue_type=radio&queue_name=%E8%8B%B1%E5%9B%BD%E7%94%B7%E6%AD%8C%E6%89%8B&sub_queue_type=%E8%8B%B1%E5%9B%BD%E7%94%B7%E6%AD%8C%E6%89%8B_7408841207247437875&flow_type=2",
+                "type": 5,
+                "cover_color": {
+                  "dominant_color": {
+                    "rgb": "D74737"
+                  },
+                  "base_five_color": {
+                    "rgb": "c93b2b"
+                  }
+                },
+                "cover_url_list": [
+                  {
+                    "uri": "tos-cn-v-2774c002/o4GZGEW7iIHlrwEAv5BYiAv8QaLoAEvEgZBAz",
+                    "urls": [
+                      "https://p3-luna.douyinpic.com/img/",
+                      "https://p6-luna.douyinpic.com/img/"
+                    ],
+                    "template_prefix": "tplv-b829550vbb"
+                  }
+                ],
+                "passthrough": "{\"radio_inner_rec_type\":0}"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

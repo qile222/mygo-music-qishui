@@ -1,0 +1,402 @@
+{
+  "status_info": {
+    "now": 1794211900,
+    "now_ts_ms": 1794211900481
+  },
+  "has_more": true,
+  "items": [
+    {
+      "id": "7681576245513177142",
+      "type": "track",
+      "entity": {
+        "track_wrapper": {
+          "track": {
+            "id": "7681576245513177142",
+            "name": "别错过",
+            "duration": 183453,
+            "media_type": "track",
+            "vid": "examplevid0004",
+            "state": {},
+            "stats": {
+              "count_collected": 14657,
+              "count_comment": 14,
+              "count_shared": 242
+            },
+            "preview": {
+              "duration": 60047,
+              "vid": "examplevid0017",
+              "bit_rates": [
+                {
+                  "br": 68421,
+                  "size": 513160,
+                  "quality": "medium"
+                },
+                {
+                  "br": 132418,
+                  "size": 993135,
+                  "quality": "higher"
+                },
+                {
+                  "br": 260463,
+                  "size": 1953479,
+                  "quality": "highest"
+                }
+              ]
+            },
+            "label_info": {
+              "only_vip_download": true,
+              "only_vip_playable": true,
+              "quality_only_vip_can_download": [
+                "medium",
+                "higher",
+                "highest",
+                "lossless"
+              ],
+              "quality_only_vip_can_play": [
+                "lossless"
+              ],
+              "quality_map": {
+                "lossless": {
+                  "play_detail": {
+                    "condition": "benefit_play_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "spatial": {
+                  "play_detail": {
+                    "condition": "benefit_play_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "hi_res": {
+                  "play_detail": {
+                    "condition": "benefit_play_hi_res",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": null
+                },
+                "medium": {
+                  "play_detail": {
+                    "condition": "benefit_play_medium",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_medium",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "higher": {
+                  "play_detail": {
+                    "condition": "benefit_play_higher",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_higher",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "highest": {
+                  "play_detail": {
+                    "condition": "benefit_play_highest",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_highest",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                }
+              }
+            },
+            "bit_rates": [
+              {
+                "br": 68230,
+                "size": 1564645,
+                "quality": "medium"
+              },
+              {
+                "br": 132224,
+                "size": 3032116,
+                "quality": "higher"
+              },
+              {
+                "br": 260251,
+                "size": 5967997,
+                "quality": "highest"
+              }
+            ],
+            "audition_info": {
+              "vid": "examplevid0017",
+              "duration_ms": 60047
+            },
+            "limited_free_info": {
+              "queue_types": [],
+              "expire_time": 0,
+              "sign": "",
+              "sign_version": "",
+              "limited_free_type": "",
+              "rewind_prev_intercept_type": "",
+              "intercept_type": ""
+            },
+            "playable_range": {
+              "duration": 33792,
+              "start": 82176
+            },
+            "album": {
+              "id": "7681576245513144374",
+              "name": "别错过",
+              "release_date": 1788480002,
+              "url_cover": {
+                "uri": "tos-cn-v-2774c002/ogCoEmiBAIfgL9mAd1TaWS3EDAitlsBTocAgMQ",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template_prefix": "tplv-b829550vbb"
+              },
+              "url_player_bg": {
+                "uri": "tos-cn-v-2774c002/ogCoEmiBAIfgL9mAd1TaWS3EDAitlsBTocAgMQ",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template": "background:${width}:${height}:30:90:0",
+                "template_prefix": "tplv-b829550vbb"
+              }
+            },
+            "artists": [
+              {
+                "id": "7676009743306541106",
+                "name": "DJ小智",
+                "url_avatar": {
+                  "uri": "tos-cn-v-2774c002/oInZ2hiCOAFHMGC7tIfZrLgEBfCIiAAD2BAqqE",
+                  "urls": [
+                    "https://p3-luna.douyinpic.com/img/",
+                    "https://p6-luna.douyinpic.com/img/"
+                  ],
+                  "template_prefix": "tplv-b829550vbb"
+                },
+                "simple_display_name": "DJ小智"
+              }
+            ]
+          },
+          "limited_free_info": {
+            "queue_types": null,
+            "limited_free": false,
+            "expire_time": 1794384700,
+            "sign": "example-sign",
+            "sign_version": "2.0",
+            "limited_free_type": "ad_vip_song_guide_new",
+            "config": {
+              "background_to_front_popup": {
+                "intercept_type": "ads"
+              },
+              "superior_full_screen_popup": {
+                "intercept_type": "ads"
+              },
+              "preview_popup": {
+                "intercept_type": "ads"
+              }
+            },
+            "rewind_prev_intercept_type": "",
+            "intercept_type": "ads",
+            "track_value": ""
+          }
+        }
+      }
+    },
+    {
+      "id": "7689447702921349121",
+      "type": "track",
+      "entity": {
+        "track_wrapper": {
+          "track": {
+            "id": "7689447702921349121",
+            "name": "睡前别想太多",
+            "duration": 210079,
+            "media_type": "track",
+            "vid": "examplevid0018",
+            "state": {},
+            "stats": {
+              "count_collected": 1997072,
+              "count_comment": 7862,
+              "count_shared": 121535
+            },
+            "preview": {},
+            "label_info": {
+              "only_vip_download": true,
+              "quality_only_vip_can_download": [
+                "medium",
+                "higher",
+                "highest",
+                "lossless"
+              ],
+              "quality_only_vip_can_play": [
+                "lossless"
+              ],
+              "quality_map": {
+                "spatial": {
+                  "play_detail": {
+                    "condition": "benefit_play_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "hi_res": {
+                  "play_detail": {
+                    "condition": "benefit_play_hi_res",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": null
+                },
+                "medium": {
+                  "play_detail": {
+                    "condition": "benefit_play_medium",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_medium",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "higher": {
+                  "play_detail": {
+                    "condition": "benefit_play_higher",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_higher",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "highest": {
+                  "play_detail": {
+                    "condition": "benefit_play_highest",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_highest",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "lossless": {
+                  "play_detail": {
+                    "condition": "benefit_play_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                }
+              }
+            },
+            "bit_rates": [
+              {
+                "br": 68218,
+                "size": 1791423,
+                "quality": "medium"
+              },
+              {
+                "br": 132213,
+                "size": 3471932,
+                "quality": "higher"
+              },
+              {
+                "br": 260245,
+                "size": 6834042,
+                "quality": "highest"
+              }
+            ],
+            "audition_info": {},
+            "limited_free_info": null,
+            "playable_range": {
+              "duration": 28991,
+              "start": 66816
+            },
+            "album": {
+              "id": "7689447702921283585",
+              "name": "睡前别想太多",
+              "release_date": 1790352000,
+              "url_cover": {
+                "uri": "tos-cn-v-2774c002/oMAGtfrFAvmxIFr1LXKG2IIGwATAYAaFKRef8f",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template_prefix": "tplv-b829550vbb"
+              },
+              "url_player_bg": {
+                "uri": "tos-cn-v-2774c002/oMAGtfrFAvmxIFr1LXKG2IIGwATAYAaFKRef8f",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template": "background:${width}:${height}:30:90:0",
+                "template_prefix": "tplv-b829550vbb"
+              }
+            },
+            "artists": [
+              {
+                "id": "7191692257018415106",
+                "name": "李雨霏",
+                "url_avatar": {
+                  "uri": "tos-cn-v-2774c002/ow7AiABihEA0DsAwF2WYOdEqGLTWBfhAoq0zjF",
+                  "urls": [
+                    "https://p3-luna.douyinpic.com/img/",
+                    "https://p6-luna.douyinpic.com/img/"
+                  ],
+                  "template_prefix": "tplv-b829550vbb"
+                },
+                "simple_display_name": "李雨霏"
+              }
+            ]
+          },
+          "limited_free_info": {
+            "queue_types": null,
+            "limited_free": false,
+            "expire_time": 1794384700,
+            "sign": "example-sign",
+            "sign_version": "2.0",
+            "limited_free_type": "",
+            "rewind_prev_intercept_type": "",
+            "intercept_type": "",
+            "track_value": ""
+          }
+        }
+      }
+    }
+  ]
+}

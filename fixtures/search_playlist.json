@@ -1,0 +1,77 @@
+{
+  "status_info": {
+    "now": 1794212339,
+    "now_ts_ms": 1794212339228
+  },
+  "result_groups": [
+    {
+      "id": "playlists",
+      "next_cursor": "20",
+      "has_more": true,
+      "data": [
+        {
+          "meta": {
+            "item_type": "playlist"
+          },
+          "entity": {
+            "playlist": {
+              "id": "7221001030866042915",
+              "title": "薛之谦百首神级歌曲",
+              "url_cover": {
+                "uri": "tos-cn-v-2774c002/ocMAAV1E89gBdAoywhosmfiOiWBsAAH2OhIxAE",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template_prefix": "tplv-b829550vbb"
+              },
+              "count_tracks": 100,
+              "stats": {
+                "count_collected": 30031,
+                "count_visible": 100
+              },
+              "owner": {
+                "id": "<用户ID>",
+                "nickname": "<用户昵称>",
+                "medium_avatar_url": {
+                  "uri": "<avatar-uri>",
+                  "urls": [
+                    "https://example.invalid/redacted-avatar.jpeg"
+                  ],
+                  "need_complete_url": true
+                },
+                "thumb_avatar_url": {
+                  "uri": "<avatar-uri>",
+                  "urls": [
+                    "https://example.invalid/redacted-avatar.jpeg"
+                  ],
+                  "need_complete_url": true
+                },
+                "secret": false,
+                "test_tag": 0,
+                "vip_stage": "",
+                "is_vip": false,
+                "public_name": "<用户昵称>",
+                "is_luna_user": true
+              },
+              "type": 2,
+              "from_feed": false,
+              "resource_cnt": {
+                "track_cnt": 100
+              }
+            }
+          }
+        },
+        "…（其余条目省略，结构相同）"
+      ],
+      "display_view_all": false,
+      "display_title": "",
+      "description": "",
+      "bottom_desc": "",
+      "display_type": ""
+    }
+  ],
+  "extra": {
+    "log_extra": "{\"query_intention_type\":\"music_related\"}"
+  }
+}

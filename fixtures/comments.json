@@ -1,0 +1,140 @@
+{
+  "status_info": {
+    "now": 1794212216,
+    "now_ts_ms": 1794212216994
+  },
+  "comments": [
+    {
+      "id": "6147773200586260047",
+      "content": "这是示例评论 1，仅用于展示评论字段结构。",
+      "count_digged": 3,
+      "time_created": 1762000000,
+      "user": {
+        "id": "<用户ID>",
+        "nickname": "<用户昵称>",
+        "medium_avatar_url": {
+          "uri": "<avatar-uri>",
+          "urls": [
+            "https://example.invalid/redacted-avatar.jpeg"
+          ],
+          "need_complete_url": true
+        },
+        "thumb_avatar_url": {
+          "uri": "<avatar-uri>",
+          "urls": [
+            "https://example.invalid/redacted-avatar.jpeg"
+          ],
+          "need_complete_url": true
+        },
+        "secret": false,
+        "test_tag": 0,
+        "vip_stage": "free",
+        "is_vip": false,
+        "public_name": "<用户昵称>",
+        "is_luna_user": true
+      },
+      "count_reply": 0,
+      "featured": false,
+      "visibility": 1,
+      "featured_tags": [],
+      "user_artist_info": {
+        "user_artist_type": 0,
+        "user_brief": {
+          "id": "<用户ID>",
+          "nickname": "<用户昵称>",
+          "medium_avatar_url": {
+            "uri": "<avatar-uri>",
+            "urls": [
+              "https://example.invalid/redacted-avatar.jpeg"
+            ],
+            "need_complete_url": true
+          },
+          "thumb_avatar_url": {
+            "uri": "<avatar-uri>",
+            "urls": [
+              "https://example.invalid/redacted-avatar.jpeg"
+            ],
+            "need_complete_url": true
+          },
+          "secret": false,
+          "test_tag": 0,
+          "vip_stage": "free",
+          "is_vip": false,
+          "public_name": "<用户昵称>",
+          "is_luna_user": true
+        }
+      },
+      "ip_label": "示例地区",
+      "user_digged": null
+    },
+    {
+      "id": "2618255722737836899",
+      "content": "这是示例评论 2，仅用于展示评论字段结构。",
+      "count_digged": 4,
+      "time_created": 1762086400,
+      "user": {
+        "id": "<用户ID>",
+        "nickname": "<用户昵称>",
+        "medium_avatar_url": {
+          "uri": "<avatar-uri>",
+          "urls": [
+            "https://example.invalid/redacted-avatar.jpeg"
+          ],
+          "need_complete_url": true
+        },
+        "thumb_avatar_url": {
+          "uri": "<avatar-uri>",
+          "urls": [
+            "https://example.invalid/redacted-avatar.jpeg"
+          ],
+          "need_complete_url": true
+        },
+        "secret": false,
+        "test_tag": 0,
+        "vip_stage": "free",
+        "is_vip": false,
+        "public_name": "<用户昵称>",
+        "is_luna_user": true
+      },
+      "count_reply": 0,
+      "featured": false,
+      "visibility": 1,
+      "featured_tags": [],
+      "user_artist_info": {
+        "user_artist_type": 0,
+        "user_brief": {
+          "id": "<用户ID>",
+          "nickname": "<用户昵称>",
+          "medium_avatar_url": {
+            "uri": "<avatar-uri>",
+            "urls": [
+              "https://example.invalid/redacted-avatar.jpeg"
+            ],
+            "need_complete_url": true
+          },
+          "thumb_avatar_url": {
+            "uri": "<avatar-uri>",
+            "urls": [
+              "https://example.invalid/redacted-avatar.jpeg"
+            ],
+            "need_complete_url": true
+          },
+          "secret": false,
+          "test_tag": 0,
+          "vip_stage": "free",
+          "is_vip": false,
+          "public_name": "<用户昵称>",
+          "is_luna_user": true
+        }
+      },
+      "ip_label": "示例地区",
+      "user_digged": null
+    }
+  ],
+  "count": "1234",
+  "cursor": "20",
+  "has_more": true,
+  "prompts": [
+    "写下你想说的..."
+  ]
+}

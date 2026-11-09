@@ -1,0 +1,58 @@
+{
+  "status_info": {
+    "now": 1794212338,
+    "now_ts_ms": 1794212338619
+  },
+  "result_groups": [
+    {
+      "id": "artists",
+      "next_cursor": "20",
+      "has_more": true,
+      "data": [
+        {
+          "meta": {
+            "item_type": "artist",
+            "quick_play_info": {
+              "quick_play_deeplink_url": "luna://luna.com/play_source?queue_id=6807264292040083458&queue_type=artist&queue_name=%E8%96%9B%E4%B9%8B%E8%B0%A6",
+              "landing_page_type": "artist"
+            }
+          },
+          "entity": {
+            "artist": {
+              "id": "6807264292040083458",
+              "name": "薛之谦",
+              "count_albums": 67,
+              "count_tracks": 144,
+              "stats": {
+                "count_collected": 35514295
+              },
+              "state": {
+                "blocked_by_me": false
+              },
+              "url_avatar": {
+                "uri": "tos-cn-v-2774c002/owZBIFBwAH8fA4Ovjph9CvQ79AEtEACfD5k2Eg",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template_prefix": "tplv-b829550vbb"
+              },
+              "simple_display_name": "薛之谦",
+              "full_display_name": "薛之谦",
+              "user_artist_type": 2
+            }
+          }
+        },
+        "…（其余条目省略，结构相同）"
+      ],
+      "display_view_all": false,
+      "display_title": "",
+      "description": "",
+      "bottom_desc": "",
+      "display_type": ""
+    }
+  ],
+  "extra": {
+    "log_extra": "{\"query_intention_type\":\"music_related\"}"
+  }
+}

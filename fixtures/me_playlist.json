@@ -1,0 +1,106 @@
+{
+  "status_info": {
+    "now": 1794211867,
+    "now_ts_ms": 1794211867385
+  },
+  "playlists": [
+    {
+      "id": "1039685314799386841",
+      "title": "我喜欢的音乐",
+      "is_private": true,
+      "type": 1,
+      "from_feed": false,
+      "count_tracks": 12,
+      "stats": {
+        "count_visible": 12
+      },
+      "resource_cnt": {
+        "track_cnt": 12,
+        "mv_cnt": 0
+      },
+      "create_time": 1700000000,
+      "update_time": 1794000000,
+      "review_status": "Accept",
+      "url_cover": {
+        "uri": "<cover-uri-liked>",
+        "urls": [
+          "https://example.invalid/cover.jpg",
+          "https://example.invalid/cover.jpg"
+        ],
+        "template_prefix": "tplv-b829550vbb"
+      },
+      "owner": {
+        "id": "<用户ID>",
+        "nickname": "<用户昵称>",
+        "medium_avatar_url": {
+          "uri": "<avatar-uri>",
+          "urls": [
+            "https://example.invalid/redacted-avatar.jpeg"
+          ],
+          "need_complete_url": true
+        },
+        "thumb_avatar_url": {
+          "uri": "<avatar-uri>",
+          "urls": [
+            "https://example.invalid/redacted-avatar.jpeg"
+          ],
+          "need_complete_url": true
+        },
+        "secret": false,
+        "test_tag": 0,
+        "vip_stage": "",
+        "is_vip": false,
+        "public_name": "<用户昵称>",
+        "is_luna_user": true
+      }
+    },
+    {
+      "id": "4379357069542347530",
+      "title": "抖音收藏的音乐",
+      "is_private": true,
+      "type": 4,
+      "from_feed": false,
+      "count_tracks": null,
+      "stats": {
+        "count_visible": 0
+      },
+      "resource_cnt": null,
+      "create_time": 1700000000,
+      "update_time": 1794000001,
+      "review_status": "Accept",
+      "url_cover": {
+        "uri": "<cover-uri-douyin>",
+        "urls": [
+          "https://example.invalid/cover.jpg",
+          "https://example.invalid/cover.jpg"
+        ],
+        "template_prefix": "tplv-b829550vbb"
+      },
+      "owner": {
+        "id": "<用户ID>",
+        "nickname": "<用户昵称>",
+        "medium_avatar_url": {
+          "uri": "<avatar-uri>",
+          "urls": [
+            "https://example.invalid/redacted-avatar.jpeg"
+          ],
+          "need_complete_url": true
+        },
+        "thumb_avatar_url": {
+          "uri": "<avatar-uri>",
+          "urls": [
+            "https://example.invalid/redacted-avatar.jpeg"
+          ],
+          "need_complete_url": true
+        },
+        "secret": false,
+        "test_tag": 0,
+        "vip_stage": "",
+        "is_vip": false,
+        "public_name": "<用户昵称>",
+        "is_luna_user": true
+      }
+    }
+  ],
+  "total_num": 2
+}

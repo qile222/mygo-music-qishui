@@ -1,0 +1,39 @@
+{
+  "status_info": {
+    "now": 1794212250,
+    "now_ts_ms": 1794212250531
+  },
+  "has_more": true,
+  "inner_block": [
+    {
+      "type": "discover_playlist",
+      "title": "日语| 一起相约去写作业吧！(*╹▽╹*)",
+      "inner_block_id": "7031089117811689480",
+      "resources": [
+        {
+          "resource_id": "7031089117811689480",
+          "type": "playlist",
+          "entity": {
+            "playlist": {
+              "id": "7031089117811689480",
+              "title": "日语| 一起相约去写作业吧！(*╹▽╹*)",
+              "count_tracks": 29,
+              "stats": {
+                "count_collected": 163,
+                "count_visible": 30
+              },
+              "url_cover": {
+                "uri": "ies-music/pgc_cover_2358aa8a23b6db5cd3a9be063ada9d8c",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template_prefix": "tplv-b829550vbb"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

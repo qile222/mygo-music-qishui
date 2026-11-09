@@ -1,0 +1,31 @@
+package plugin
+
+// Injected by tools/harness/go/run-go.sh into a throwaway copy of the
+// mygo-music source tree. It uses the real plugin.Load (MyGo Music 0.1.22,
+// MIT) so plugin.json rules and module compilation match the app; the JS
+// runtime is never started.
+import (
+	"os"
+	"testing"
+)
+
+func TestHarnessPlugin(t *testing.T) {
+	dir := os.Getenv("HARNESS_PLUGIN")
+	if dir == "" {
+		t.Skip("HARNESS_PLUGIN is not set; run tools/harness/go/run-go.sh instead")
+	}
+	p, err := Load(dir, t.TempDir())
+	if err != nil {
+		t.Fatalf("plugin.Load(%q): %v", dir, err)
+	}
+	info := p.Info()
+	if info.ID == "" {
+		t.Fatal("loaded plugin has an empty ID")
+	}
+	t.Logf("plugin: id=%s name=%s version=%s playback=%s", info.ID, info.Name, info.Version, info.Playback)
+	for _, name := range []string{"home", "search", "stream"} {
+		if !p.Can(name) {
+			t.Errorf("plugin does not export %q (the contract requires home/search/stream)", name)
+		}
+	}
+}

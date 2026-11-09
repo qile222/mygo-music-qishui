@@ -1,0 +1,29 @@
+{
+  "id": "harness-mock",
+  "name": "Harness Mock",
+  "version": "0.0.0",
+  "main": "index.js",
+  "playback": "stream",
+  "minAppVersion": "0.1.20",
+  "permissions": {
+    "network": [
+      "api.example.com",
+      "cdn.example.com"
+    ],
+    "process": []
+  },
+  "navigation": [
+    {
+      "builtin": "home",
+      "title": "Home",
+      "icon": "home"
+    }
+  ],
+  "settings": [
+    {
+      "key": "token",
+      "label": "Token",
+      "help": "Sign-in token used by the mock API."
+    }
+  ]
+}

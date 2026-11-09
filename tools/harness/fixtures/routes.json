@@ -1,0 +1,134 @@
+{
+  "routes": [
+    {
+      "url": "api.example.com/home",
+      "json": {
+        "title": "Harness Home",
+        "sections": [
+          {
+            "title": "Hot tracks",
+            "tracks": [
+              {
+                "id": "t1",
+                "name": "Mock Song One",
+                "artists": [
+                  {
+                    "id": "ar1",
+                    "name": "Mock Artist"
+                  }
+                ],
+                "album": {
+                  "id": "al1",
+                  "name": "Mock Album"
+                },
+                "duration": 180000
+              },
+              {
+                "id": "t2",
+                "name": "Mock Song Two",
+                "artists": [
+                  {
+                    "id": "ar1",
+                    "name": "Mock Artist"
+                  }
+                ],
+                "album": {
+                  "id": "al2",
+                  "name": "Mock Album Two"
+                },
+                "duration": 200000
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "urlRegex": "api\\.example\\.com/search\\?.*kind=albums",
+      "json": {
+        "albums": [
+          {
+            "id": "al1",
+            "name": "Mock Album",
+            "artists": [
+              {
+                "id": "ar1",
+                "name": "Mock Artist"
+              }
+            ]
+          }
+        ],
+        "more": false
+      }
+    },
+    {
+      "urlRegex": "api\\.example\\.com/search\\?.*kind=artists",
+      "json": {
+        "artists": [
+          {
+            "id": "ar1",
+            "name": "Mock Artist"
+          }
+        ],
+        "more": false
+      }
+    },
+    {
+      "urlRegex": "api\\.example\\.com/search\\?.*kind=playlists",
+      "json": {
+        "playlists": [
+          {
+            "id": "pl1",
+            "name": "Mock Playlist",
+            "trackCount": 2
+          }
+        ],
+        "more": false
+      }
+    },
+    {
+      "urlRegex": "api\\.example\\.com/search\\?.*kind=shows",
+      "json": {
+        "shows": [
+          {
+            "id": "sh1",
+            "name": "Mock Show",
+            "episodeCount": 3
+          }
+        ],
+        "more": false
+      }
+    },
+    {
+      "url": "api.example.com/search",
+      "json": {
+        "tracks": [
+          {
+            "id": "t1",
+            "name": "Mock Song One",
+            "artists": [
+              {
+                "id": "ar1",
+                "name": "Mock Artist"
+              }
+            ],
+            "album": {
+              "id": "al1",
+              "name": "Mock Album"
+            },
+            "duration": 180000
+          }
+        ],
+        "more": true
+      }
+    },
+    {
+      "url": "api.example.com/stream",
+      "json": {
+        "url": "https://cdn.example.com/audio/1.m4a",
+        "type": "m4a",
+        "size": 1024000
+      }
+    }
+  ]
+}

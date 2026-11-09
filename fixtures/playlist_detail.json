@@ -1,0 +1,446 @@
+{
+  "status_info": {
+    "now": 1794211932,
+    "now_ts_ms": 1794211932718
+  },
+  "playlist": {
+    "id": "1039685314799386841",
+    "title": "我喜欢的音乐",
+    "is_private": true,
+    "type": 1,
+    "from_feed": false,
+    "count_tracks": 2,
+    "stats": {
+      "count_visible": 2
+    },
+    "resource_cnt": null,
+    "create_time": 1700000000,
+    "update_time": 1794000000,
+    "review_status": "Accept",
+    "cover_gradient_effect_color": [
+      {
+        "rgb": "b2412e"
+      },
+      {
+        "rgb": "121212"
+      }
+    ],
+    "public_title": "<用户昵称>喜欢的音乐",
+    "all_sort_types": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "url_cover": {
+      "uri": "<cover-uri-liked>",
+      "urls": [
+        "https://example.invalid/cover.jpg",
+        "https://example.invalid/cover.jpg"
+      ],
+      "template_prefix": "tplv-b829550vbb"
+    },
+    "owner": {
+      "id": "<用户ID>",
+      "nickname": "<用户昵称>",
+      "medium_avatar_url": {
+        "uri": "<avatar-uri>",
+        "urls": [
+          "https://example.invalid/redacted-avatar.jpeg"
+        ],
+        "need_complete_url": true
+      },
+      "thumb_avatar_url": {
+        "uri": "<avatar-uri>",
+        "urls": [
+          "https://example.invalid/redacted-avatar.jpeg"
+        ],
+        "need_complete_url": true
+      },
+      "secret": false,
+      "test_tag": 0,
+      "vip_stage": "",
+      "is_vip": false,
+      "public_name": "<用户昵称>",
+      "is_luna_user": true
+    }
+  },
+  "media_resources": [
+    {
+      "id": "9068381344414835360",
+      "type": "track",
+      "entity": {
+        "track_wrapper": {
+          "track": {
+            "id": "9068381344414835360",
+            "name": "示例歌曲 1",
+            "duration": 216973,
+            "media_type": "track",
+            "vid": "examplevid0001",
+            "state": {},
+            "stats": {
+              "count_collected": 9339941,
+              "count_comment": 1234,
+              "count_shared": 244895
+            },
+            "preview": {
+              "duration": 60047,
+              "start": 60000,
+              "vid": "examplepreview0001",
+              "bit_rates": [
+                {
+                  "br": 68430,
+                  "size": 513227,
+                  "quality": "medium"
+                },
+                {
+                  "br": 132437,
+                  "size": 993280,
+                  "quality": "higher"
+                },
+                {
+                  "br": 260480,
+                  "size": 1953604,
+                  "quality": "highest"
+                }
+              ]
+            },
+            "label_info": {
+              "only_vip_download": true,
+              "only_vip_playable": true,
+              "quality_only_vip_can_download": [
+                "medium",
+                "higher",
+                "highest",
+                "lossless"
+              ],
+              "quality_only_vip_can_play": [
+                "lossless"
+              ],
+              "is_original": true,
+              "quality_map": {
+                "highest": {
+                  "play_detail": {
+                    "condition": "benefit_play_highest",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_highest",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "lossless": {
+                  "play_detail": {
+                    "condition": "benefit_play_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "spatial": {
+                  "play_detail": {
+                    "condition": "benefit_play_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "hi_res": {
+                  "play_detail": {
+                    "condition": "benefit_play_hi_res",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": null
+                },
+                "medium": {
+                  "play_detail": {
+                    "condition": "benefit_play_medium",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_medium",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "higher": {
+                  "play_detail": {
+                    "condition": "benefit_play_higher",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_higher",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                }
+              }
+            },
+            "bit_rates": [
+              {
+                "br": 66141,
+                "size": 1793854,
+                "quality": "medium"
+              },
+              {
+                "br": 132178,
+                "size": 3585674,
+                "quality": "higher"
+              }
+            ],
+            "audition_info": {
+              "vid": "examplevid0019",
+              "start_time_ms": 60000,
+              "duration_ms": 60047
+            },
+            "limited_free_info": null,
+            "playable_range": {
+              "duration": 72384,
+              "start": 60000
+            },
+            "album": {
+              "id": "1624769131804025761",
+              "name": "示例专辑 1",
+              "release_date": 1600086400,
+              "url_cover": {
+                "uri": "<cover-uri-album-1>",
+                "urls": [
+                  "https://example.invalid/cover.jpg"
+                ],
+                "template_prefix": "tplv-example"
+              },
+              "url_player_bg": {
+                "uri": "<cover-uri-album-1>",
+                "urls": [
+                  "https://example.invalid/cover.jpg"
+                ],
+                "template": "background:${width}:${height}:30:90:0",
+                "template_prefix": "tplv-example"
+              }
+            },
+            "artists": [
+              {
+                "id": "1640465258893792493",
+                "name": "示例歌手 1",
+                "url_avatar": {
+                  "uri": "<cover-uri-artist-1>",
+                  "urls": [
+                    "https://example.invalid/cover.jpg"
+                  ],
+                  "template_prefix": "tplv-example"
+                },
+                "simple_display_name": "示例歌手 1"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "1237064745578653998",
+      "type": "track",
+      "entity": {
+        "track_wrapper": {
+          "track": {
+            "id": "1237064745578653998",
+            "name": "示例歌曲 2",
+            "duration": 206886,
+            "media_type": "track",
+            "vid": "examplevid0002",
+            "state": {},
+            "stats": {
+              "count_collected": 561263,
+              "count_comment": 1136,
+              "count_shared": 19286
+            },
+            "preview": {
+              "duration": 60001,
+              "start": 60000,
+              "vid": "examplepreview0002",
+              "bit_rates": [
+                {
+                  "br": 68432,
+                  "size": 513242,
+                  "quality": "medium"
+                },
+                {
+                  "br": 132426,
+                  "size": 993202,
+                  "quality": "higher"
+                },
+                {
+                  "br": 260486,
+                  "size": 1953648,
+                  "quality": "highest"
+                }
+              ]
+            },
+            "label_info": {
+              "only_vip_download": true,
+              "only_vip_playable": true,
+              "quality_only_vip_can_download": [
+                "medium",
+                "higher",
+                "highest",
+                "lossless"
+              ],
+              "quality_only_vip_can_play": [
+                "lossless"
+              ],
+              "is_original": true,
+              "quality_map": {
+                "spatial": {
+                  "play_detail": {
+                    "condition": "benefit_play_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "hi_res": {
+                  "play_detail": {
+                    "condition": "benefit_play_hi_res",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": null
+                },
+                "medium": {
+                  "play_detail": {
+                    "condition": "benefit_play_medium",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_medium",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "higher": {
+                  "play_detail": {
+                    "condition": "benefit_play_higher",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_higher",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "highest": {
+                  "play_detail": {
+                    "condition": "benefit_play_highest",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_highest",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "lossless": {
+                  "play_detail": {
+                    "condition": "benefit_play_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                }
+              }
+            },
+            "bit_rates": [
+              {
+                "br": 68214,
+                "size": 1764095,
+                "quality": "medium"
+              },
+              {
+                "br": 132206,
+                "size": 3418964,
+                "quality": "higher"
+              },
+              {
+                "br": 260231,
+                "size": 6729823,
+                "quality": "highest"
+              }
+            ],
+            "audition_info": {
+              "vid": "examplevid0002",
+              "start_time_ms": 60000,
+              "duration_ms": 60001
+            },
+            "limited_free_info": null,
+            "playable_range": {
+              "duration": 20736,
+              "start": 163200
+            },
+            "album": {
+              "id": "1343854040711697108",
+              "name": "示例专辑 2",
+              "release_date": 1600172800,
+              "url_cover": {
+                "uri": "<cover-uri-album-2>",
+                "urls": [
+                  "https://example.invalid/cover.jpg"
+                ],
+                "template_prefix": "tplv-example"
+              },
+              "url_player_bg": {
+                "uri": "<cover-uri-album-2>",
+                "urls": [
+                  "https://example.invalid/cover.jpg"
+                ],
+                "template": "background:${width}:${height}:30:90:0",
+                "template_prefix": "tplv-example"
+              }
+            },
+            "artists": [
+              {
+                "id": "8738362547621489486",
+                "name": "示例歌手 2",
+                "url_avatar": {
+                  "uri": "<cover-uri-artist-2>",
+                  "urls": [
+                    "https://example.invalid/cover.jpg"
+                  ],
+                  "template_prefix": "tplv-example"
+                },
+                "simple_display_name": "示例歌手 2"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "has_more": null,
+  "next_cursor": "2"
+}

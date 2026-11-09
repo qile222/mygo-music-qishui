@@ -1,0 +1,411 @@
+{
+  "status_info": {
+    "now": 1794212120,
+    "now_ts_ms": 1794212120407
+  },
+  "album_info": {
+    "id": "6778775240618018818",
+    "name": "初学者",
+    "company": "华宇世博音乐文化（北京）有限公司",
+    "count_tracks": 10,
+    "release_date": 1468800000,
+    "intro": "在人生的道路上自愿当永远的“初学者”\n“段子手”薛之谦 不忘初心强势回归乐坛\n2016首支硬派摇滚之作《初学者》强力来袭\n\n从选秀节目初试啼声到正式加入演艺圈并成功以多首脍炙人口的畅销金曲占据歌坛地位，“薛之谦”这个名字代表着一股朝气蓬勃的勇气。过去几年中由于经纪公司经营上的动荡与变化，导致他在音乐途中历经多番波折，薛之谦一度面临漫长且煎熬的人生低潮期。虽然演艺之路遇到挫折，但薛之谦一转念，又以初生之犊的姿态勇敢创业，进攻饮食与潮流产业并一举创下佳绩。在副业上大放异彩之际，薛之谦仍不忘初衷，潜心创作与认真经营音乐版图。由于他始终抱持着对音乐的无限狂热，才能让听众听到《绅士》、《演员》、《丑八怪》、《你还要我怎样》、《小孩》、《一半》等等音乐形态丰富多变且质量优秀的好歌。幽默风趣怪点子特别多的薛之谦今年更以“段子手”形象席卷综艺圈以及网络世界，今年更是手握十余档综艺节目的邀约，薛之谦的知名度再次冲顶高峰，立即成为最火的“综艺奇才”！成功背后的原因在于他始终把自己当做人生的“初学者”，不管对歌唱、演戏、综艺、商业各个领域上永远谦卑学习，虚心吸收，努力耕耘，一步一脚印擦亮“薛之谦”这个金字招牌！2016年 夏天，薛之谦暂时卸下搞笑的面具，回归初心，即将以音乐人的身份再次征战歌坛。薛之谦2016年第一首派台作品《初学者》即将为他生命全新的乐章揭开序幕！\n《初学者》这首歌作为薛之谦2016年回归乐坛的野心之作，在音乐形态上以前所未有的硬派摇滚强势登场。《初学者》这首歌的词曲皆由薛之谦一手包办。《初学者》前奏以充满悬疑片的神秘氛围开场，从主歌开始缓缓流泻的音符一直到副歌之处的音效处理中，薛之谦突发奇想加入了犹如古老圣歌般奇瑰的女高音元素，让整首歌进入更具深度的层次。薛之谦在音色的诠释上揉合了更多夸张的戏剧元素，配合歌词中充满无边想象力的绮丽意象，再次证明他在音乐上的过人才情与驾驭歌唱的雄厚实力！编曲中硬派的摇滚风充满了征战与挑衅的意味，让人听得热血淋漓，大呼过瘾！《初学者》的歌词阐述的是在感情里很多人都曾经当过懵懂的初学者，只凭着单纯的念头对一个人傻傻地付出。人们在爱情的路上越挫越勇、越学越多，到最后每个人身上都挂满华丽的伤口，却回过头来高傲地，开始嘲笑着对自己崇拜的初学着。《初学者》的歌词充满炫目丰富的视觉映象，字里行间彷佛可以清晰勾勒出爱情里弱肉强食，胜者为王的残酷画面。但是回顾薛之谦过去的人生轨迹，也多亏了他这股初生之犊不畏虎的勇气，每每把触角伸展到新的人生版图之时，他都大胆让自己重新归零，永远把自己当“初学者”一般勇于挑战，反而一次又一次迎来胜利的徽章！也许在爱情的世界里，最没有经验的“初学者”才是最无敌的竞争者！2016年的夏天，竖起你的耳朵，让我们重新认识“音乐人薛之谦”！\n",
+    "stats": {
+      "count_collected": 2871,
+      "count_shared": 120,
+      "total_count_purchased": 0,
+      "count_only_vip_playable": 10,
+      "count_only_vip_without_artist_listen_benefit": 10
+    },
+    "state": {},
+    "cover_gradient_effect_color": [
+      {
+        "rgb": "311f61"
+      },
+      {
+        "rgb": "121212"
+      }
+    ],
+    "cover_shadow_color": {
+      "rgb": "130a29"
+    },
+    "artists": [
+      {
+        "id": "6807264292040083458",
+        "name": "薛之谦",
+        "url_avatar": {
+          "uri": "tos-cn-v-2774c002/owZBIFBwAH8fA4Ovjph9CvQ79AEtEACfD5k2Eg",
+          "urls": [
+            "https://p3-luna.douyinpic.com/img/",
+            "https://p6-luna.douyinpic.com/img/"
+          ],
+          "template_prefix": "tplv-b829550vbb"
+        }
+      }
+    ],
+    "url_cover": {
+      "uri": "tos-cn-v-2774c002/3c35a27d9d6b4dd69afc59c6100f578b",
+      "urls": [
+        "https://p3-luna.douyinpic.com/img/",
+        "https://p6-luna.douyinpic.com/img/"
+      ],
+      "template_prefix": "tplv-b829550vbb"
+    },
+    "url_player_bg": {
+      "uri": "tos-cn-v-2774c002/3c35a27d9d6b4dd69afc59c6100f578b",
+      "urls": [
+        "https://p3-luna.douyinpic.com/img/",
+        "https://p6-luna.douyinpic.com/img/"
+      ],
+      "template": "tplv-2nwr2cc6gm-background:${width}:${height}:30:90:0"
+    }
+  },
+  "tracks": [
+    {
+      "id": "6778775240735459330",
+      "name": "初学者",
+      "duration": 280033,
+      "media_type": "track",
+      "vid": "examplevid0008",
+      "state": {},
+      "stats": {
+        "count_collected": 241805,
+        "count_comment": 2218,
+        "count_shared": 4582
+      },
+      "preview": {
+        "duration": 60001,
+        "start": 219840,
+        "vid": "examplevid0009",
+        "bit_rates": [
+          {
+            "br": 132362,
+            "size": 992717,
+            "quality": "higher"
+          }
+        ]
+      },
+      "label_info": {
+        "only_vip_download": true,
+        "only_vip_playable": true,
+        "quality_only_vip_can_download": [
+          "medium",
+          "higher",
+          "highest",
+          "lossless"
+        ],
+        "quality_only_vip_can_play": [
+          "lossless"
+        ],
+        "is_original": true,
+        "quality_map": {
+          "medium": {
+            "play_detail": {
+              "condition": "benefit_play_medium",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_medium",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "higher": {
+            "play_detail": {
+              "condition": "benefit_play_higher",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_higher",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "highest": {
+            "play_detail": {
+              "condition": "benefit_play_highest",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_highest",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "lossless": {
+            "play_detail": {
+              "condition": "benefit_play_lossless",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_lossless",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "spatial": {
+            "play_detail": {
+              "condition": "benefit_play_spatial",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_spatial",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "hi_res": {
+            "play_detail": {
+              "condition": "benefit_play_hi_res",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": null
+          }
+        }
+      },
+      "bit_rates": [
+        {
+          "br": 73186,
+          "size": 2561529,
+          "quality": "medium"
+        },
+        {
+          "br": 132164,
+          "size": 4626549,
+          "quality": "higher"
+        },
+        {
+          "br": 260169,
+          "size": 9107447,
+          "quality": "highest"
+        }
+      ],
+      "audition_info": {
+        "vid": "examplevid0009",
+        "start_time_ms": 219840,
+        "duration_ms": 60001
+      },
+      "limited_free_info": null,
+      "playable_range": {
+        "duration": 32255,
+        "start": 219840
+      },
+      "album": {
+        "id": "6778775240618018818",
+        "name": "初学者",
+        "release_date": 1468800000,
+        "url_cover": {
+          "uri": "tos-cn-v-2774c002/3c35a27d9d6b4dd69afc59c6100f578b",
+          "urls": [
+            "https://p3-luna.douyinpic.com/img/",
+            "https://p6-luna.douyinpic.com/img/"
+          ],
+          "template_prefix": "tplv-b829550vbb"
+        },
+        "url_player_bg": {
+          "uri": "tos-cn-v-2774c002/3c35a27d9d6b4dd69afc59c6100f578b",
+          "urls": [
+            "https://p3-luna.douyinpic.com/img/",
+            "https://p6-luna.douyinpic.com/img/"
+          ],
+          "template": "background:${width}:${height}:30:90:0",
+          "template_prefix": "tplv-b829550vbb"
+        }
+      },
+      "artists": [
+        {
+          "id": "6807264292040083458",
+          "name": "薛之谦",
+          "url_avatar": {
+            "uri": "tos-cn-v-2774c002/owZBIFBwAH8fA4Ovjph9CvQ79AEtEACfD5k2Eg",
+            "urls": [
+              "https://p3-luna.douyinpic.com/img/",
+              "https://p6-luna.douyinpic.com/img/"
+            ],
+            "template_prefix": "tplv-b829550vbb"
+          },
+          "simple_display_name": "薛之谦"
+        }
+      ]
+    },
+    {
+      "id": "6778775242006333441",
+      "name": "刚刚好",
+      "duration": 250514,
+      "media_type": "track",
+      "vid": "examplevid0006",
+      "state": {},
+      "stats": {
+        "count_collected": 4126494,
+        "count_comment": 16531,
+        "count_shared": 111580
+      },
+      "preview": {
+        "duration": 60001,
+        "start": 153216,
+        "vid": "examplevid0011",
+        "bit_rates": [
+          {
+            "br": 132416,
+            "size": 993126,
+            "quality": "higher"
+          }
+        ]
+      },
+      "label_info": {
+        "only_vip_download": true,
+        "only_vip_playable": true,
+        "quality_only_vip_can_download": [
+          "medium",
+          "higher",
+          "highest",
+          "lossless"
+        ],
+        "quality_only_vip_can_play": [
+          "lossless"
+        ],
+        "is_original": true,
+        "quality_map": {
+          "higher": {
+            "play_detail": {
+              "condition": "benefit_play_higher",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_higher",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "highest": {
+            "play_detail": {
+              "condition": "benefit_play_highest",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_highest",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "lossless": {
+            "play_detail": {
+              "condition": "benefit_play_lossless",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_lossless",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "spatial": {
+            "play_detail": {
+              "condition": "benefit_play_spatial",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_spatial",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          },
+          "hi_res": {
+            "play_detail": {
+              "condition": "benefit_play_hi_res",
+              "need_vip": true,
+              "need_purchase": false
+            },
+            "download_detail": null
+          },
+          "medium": {
+            "play_detail": {
+              "condition": "benefit_play_medium",
+              "need_vip": false,
+              "need_purchase": false
+            },
+            "download_detail": {
+              "condition": "benefit_download_medium",
+              "need_vip": true,
+              "need_purchase": false
+            }
+          }
+        }
+      },
+      "bit_rates": [
+        {
+          "br": 66136,
+          "size": 2070755,
+          "quality": "medium"
+        },
+        {
+          "br": 132173,
+          "size": 4139161,
+          "quality": "higher"
+        },
+        {
+          "br": 260179,
+          "size": 8147801,
+          "quality": "highest"
+        }
+      ],
+      "audition_info": {
+        "vid": "examplevid0011",
+        "start_time_ms": 153216,
+        "duration_ms": 60001
+      },
+      "limited_free_info": null,
+      "playable_range": {
+        "duration": 32447,
+        "start": 153216
+      },
+      "album": {
+        "id": "6778775240618018818",
+        "name": "初学者",
+        "release_date": 1468800000,
+        "url_cover": {
+          "uri": "tos-cn-v-2774c002/3c35a27d9d6b4dd69afc59c6100f578b",
+          "urls": [
+            "https://p3-luna.douyinpic.com/img/",
+            "https://p6-luna.douyinpic.com/img/"
+          ],
+          "template_prefix": "tplv-b829550vbb"
+        },
+        "url_player_bg": {
+          "uri": "tos-cn-v-2774c002/3c35a27d9d6b4dd69afc59c6100f578b",
+          "urls": [
+            "https://p3-luna.douyinpic.com/img/",
+            "https://p6-luna.douyinpic.com/img/"
+          ],
+          "template": "background:${width}:${height}:30:90:0",
+          "template_prefix": "tplv-b829550vbb"
+        }
+      },
+      "artists": [
+        {
+          "id": "6807264292040083458",
+          "name": "薛之谦",
+          "url_avatar": {
+            "uri": "tos-cn-v-2774c002/owZBIFBwAH8fA4Ovjph9CvQ79AEtEACfD5k2Eg",
+            "urls": [
+              "https://p3-luna.douyinpic.com/img/",
+              "https://p6-luna.douyinpic.com/img/"
+            ],
+            "template_prefix": "tplv-b829550vbb"
+          },
+          "simple_display_name": "薛之谦"
+        }
+      ]
+    }
+  ]
+}

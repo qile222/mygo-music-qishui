@@ -1,0 +1,673 @@
+{
+  "status_info": {
+    "now": 1794211840,
+    "now_ts_ms": 1794211840111
+  },
+  "background_color": "#121212",
+  "style": {
+    "background_color": "#121212",
+    "refresh_text": "看点别的"
+  },
+  "blocks": [
+    {
+      "type": "discover_feed_playlist",
+      "title": "歌单推荐",
+      "block_style": {
+        "column_size": 5,
+        "row_size": 2,
+        "link": "luna://luna.com/playlist-square"
+      },
+      "inner_block": [
+        {
+          "type": "discover_playlist",
+          "title": "「治愈英文歌」你在的地方，就是我的温柔乡",
+          "inner_block_id": "7031081053599074335",
+          "resources": [
+            {
+              "resource_id": "7031081053599074335",
+              "type": "playlist",
+              "fallback_type": "fallback_tcc_downgrade",
+              "entity": {
+                "playlist": {
+                  "id": "7031081053599074335",
+                  "title": "「治愈英文歌」你在的地方，就是我的温柔乡",
+                  "desc": "你在的地方，就是我的温柔乡。",
+                  "count_tracks": 22,
+                  "stats": {
+                    "count_collected": 206,
+                    "count_visible": 25
+                  },
+                  "create_time": 1662797699,
+                  "update_time": 1794200280,
+                  "review_status": "Accept",
+                  "type": 3,
+                  "from_feed": true,
+                  "cover_gradient_effect_color": [
+                    {
+                      "rgb": "a9758c"
+                    },
+                    {
+                      "rgb": "121212"
+                    }
+                  ],
+                  "cover_shadow_color": {
+                    "rgb": "1f1419"
+                  },
+                  "resource_cnt": {
+                    "track_cnt": 25
+                  },
+                  "public_title": "「治愈英文歌」你在的地方，就是我的温柔乡",
+                  "url_cover": {
+                    "uri": "ies-music/D56D1F14-6DC1-4584-8D44-2578153DA603_1_201_a.jpeg",
+                    "urls": [
+                      "https://p3-luna.douyinpic.com/img/",
+                      "https://p6-luna.douyinpic.com/img/"
+                    ],
+                    "template_prefix": "tplv-b829550vbb"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "discover_playlist",
+          "title": "（示例第二张歌单，已省略）",
+          "inner_block_id": "<inner_block_id>",
+          "resources": []
+        }
+      ]
+    },
+    {
+      "type": "discover_top_song_list",
+      "block_style": {
+        "column_size": 3,
+        "row_size": 1
+      },
+      "inner_block": [
+        {
+          "type": "discover_track_top_list",
+          "title": "热歌榜",
+          "desc": "汽水音乐内每周热度最高的50首歌，每周四更新",
+          "inner_block_id": "7036274230471712007",
+          "resources": [
+            {
+              "resource_id": "6778775242320906241",
+              "type": "ranked_track",
+              "entity": {
+                "ranked_track": {
+                  "rank": {
+                    "rank_delta": "26",
+                    "rank_type": "up",
+                    "track_id": "6778775242320906241"
+                  },
+                  "track": {
+                    "id": "6778775242320906241",
+                    "name": "我好像在哪见过你",
+                    "duration": 279197,
+                    "media_type": "track",
+                    "vid": "examplevid0007",
+                    "state": {},
+                    "stats": {
+                      "count_collected": 7674469,
+                      "count_comment": 29730,
+                      "count_shared": 182858
+                    },
+                    "preview": {
+                      "duration": 60001,
+                      "start": 49152,
+                      "vid": "examplevid0010",
+                      "bit_rates": [
+                        {
+                          "br": 132430,
+                          "size": 993225,
+                          "quality": "higher"
+                        }
+                      ]
+                    },
+                    "label_info": {
+                      "only_vip_download": true,
+                      "only_vip_playable": true,
+                      "quality_only_vip_can_download": [
+                        "medium",
+                        "higher",
+                        "highest",
+                        "lossless"
+                      ],
+                      "quality_only_vip_can_play": [
+                        "lossless"
+                      ],
+                      "is_original": true,
+                      "quality_map": {
+                        "hi_res": {
+                          "play_detail": {
+                            "condition": "benefit_play_hi_res",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": null
+                        },
+                        "medium": {
+                          "play_detail": {
+                            "condition": "benefit_play_medium",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_medium",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "higher": {
+                          "play_detail": {
+                            "condition": "benefit_play_higher",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_higher",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "highest": {
+                          "play_detail": {
+                            "condition": "benefit_play_highest",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_highest",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "lossless": {
+                          "play_detail": {
+                            "condition": "benefit_play_lossless",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_lossless",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "spatial": {
+                          "play_detail": {
+                            "condition": "benefit_play_spatial",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_spatial",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        }
+                      }
+                    },
+                    "bit_rates": [
+                      {
+                        "br": 66127,
+                        "size": 2307402,
+                        "quality": "medium"
+                      },
+                      {
+                        "br": 132162,
+                        "size": 4612359,
+                        "quality": "higher"
+                      },
+                      {
+                        "br": 260164,
+                        "size": 9079523,
+                        "quality": "highest"
+                      }
+                    ],
+                    "audition_info": {
+                      "vid": "examplevid0010",
+                      "start_time_ms": 49152,
+                      "duration_ms": 60001
+                    },
+                    "limited_free_info": null,
+                    "playable_range": {
+                      "duration": 15744,
+                      "start": 49152
+                    },
+                    "album": {
+                      "id": "6778775240618018818",
+                      "name": "初学者",
+                      "release_date": 1468800000,
+                      "url_cover": {
+                        "uri": "tos-cn-v-2774c002/3c35a27d9d6b4dd69afc59c6100f578b",
+                        "urls": [
+                          "https://p3-luna.douyinpic.com/img/",
+                          "https://p6-luna.douyinpic.com/img/"
+                        ],
+                        "template_prefix": "tplv-b829550vbb"
+                      },
+                      "url_player_bg": {
+                        "uri": "tos-cn-v-2774c002/3c35a27d9d6b4dd69afc59c6100f578b",
+                        "urls": [
+                          "https://p3-luna.douyinpic.com/img/",
+                          "https://p6-luna.douyinpic.com/img/"
+                        ],
+                        "template": "background:${width}:${height}:30:90:0",
+                        "template_prefix": "tplv-b829550vbb"
+                      }
+                    },
+                    "artists": [
+                      {
+                        "id": "6807264292040083458",
+                        "name": "薛之谦",
+                        "url_avatar": {
+                          "uri": "tos-cn-v-2774c002/owZBIFBwAH8fA4Ovjph9CvQ79AEtEACfD5k2Eg",
+                          "urls": [
+                            "https://p3-luna.douyinpic.com/img/",
+                            "https://p6-luna.douyinpic.com/img/"
+                          ],
+                          "template_prefix": "tplv-b829550vbb"
+                        },
+                        "simple_display_name": "薛之谦"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "…（本榜其余条目省略，结构相同）"
+          ]
+        },
+        {
+          "type": "discover_track_top_list",
+          "title": "新歌榜",
+          "desc": "近期发行的热度最高的50首新歌，每周四更新",
+          "inner_block_id": "7060812597884869927",
+          "resources": [
+            {
+              "resource_id": "7698655415668033537",
+              "type": "ranked_track",
+              "entity": {
+                "ranked_track": {
+                  "rank": {
+                    "rank_delta": "0",
+                    "rank_type": "new",
+                    "track_id": "7698655415668033537"
+                  },
+                  "track": {
+                    "id": "7698655415668033537",
+                    "name": "人间",
+                    "duration": 220500,
+                    "media_type": "track",
+                    "vid": "examplevid0020",
+                    "state": {},
+                    "stats": {
+                      "count_collected": 17394,
+                      "count_comment": 3522,
+                      "count_shared": 890
+                    },
+                    "preview": {},
+                    "label_info": {
+                      "only_vip_download": true,
+                      "quality_only_vip_can_download": [
+                        "medium",
+                        "higher",
+                        "highest",
+                        "lossless"
+                      ],
+                      "quality_only_vip_can_play": [
+                        "lossless"
+                      ],
+                      "new_release_label": {
+                        "text": "新歌",
+                        "event_attr": "below_15"
+                      },
+                      "quality_map": {
+                        "highest": {
+                          "play_detail": {
+                            "condition": "benefit_play_highest",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_highest",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "lossless": {
+                          "play_detail": {
+                            "condition": "benefit_play_lossless",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_lossless",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "spatial": {
+                          "play_detail": {
+                            "condition": "benefit_play_spatial",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_spatial",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "hi_res": {
+                          "play_detail": {
+                            "condition": "benefit_play_hi_res",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": null
+                        },
+                        "medium": {
+                          "play_detail": {
+                            "condition": "benefit_play_medium",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_medium",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "higher": {
+                          "play_detail": {
+                            "condition": "benefit_play_higher",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_higher",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        }
+                      }
+                    },
+                    "bit_rates": [
+                      {
+                        "br": 68214,
+                        "size": 1880152,
+                        "quality": "medium"
+                      },
+                      {
+                        "br": 132230,
+                        "size": 3644614,
+                        "quality": "higher"
+                      },
+                      {
+                        "br": 260269,
+                        "size": 7173688,
+                        "quality": "highest"
+                      }
+                    ],
+                    "audition_info": {},
+                    "limited_free_info": null,
+                    "playable_range": {
+                      "duration": 33216,
+                      "start": 152256
+                    },
+                    "album": {
+                      "id": "7698655371645208577",
+                      "name": "每个春天我都会唱歌",
+                      "release_date": 1793116800,
+                      "url_cover": {
+                        "uri": "tos-cn-v-2774c002/o8tuDwEgQRCF1ExHDCZxe1f9A5DvBBAE7Anq7X",
+                        "urls": [
+                          "https://p3-luna.douyinpic.com/img/",
+                          "https://p6-luna.douyinpic.com/img/"
+                        ],
+                        "template_prefix": "tplv-b829550vbb"
+                      },
+                      "url_player_bg": {
+                        "uri": "tos-cn-v-2774c002/o8tuDwEgQRCF1ExHDCZxe1f9A5DvBBAE7Anq7X",
+                        "urls": [
+                          "https://p3-luna.douyinpic.com/img/",
+                          "https://p6-luna.douyinpic.com/img/"
+                        ],
+                        "template": "background:${width}:${height}:30:90:0",
+                        "template_prefix": "tplv-b829550vbb"
+                      }
+                    },
+                    "artists": [
+                      {
+                        "id": "6791779401978611714",
+                        "name": "许飞",
+                        "url_avatar": {
+                          "uri": "tos-cn-v-2774c002/14efb8a872fb491199c0e5bb36badc9c",
+                          "urls": [
+                            "https://p3-luna.douyinpic.com/img/",
+                            "https://p6-luna.douyinpic.com/img/"
+                          ],
+                          "template_prefix": "tplv-b829550vbb"
+                        },
+                        "simple_display_name": "许飞"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "…（本榜其余条目省略，结构相同）"
+          ]
+        },
+        {
+          "type": "discover_track_top_list",
+          "title": "欧美榜",
+          "desc": "汽水音乐内每周热度最高的50首外文歌曲，每周四更新",
+          "inner_block_id": "7061475546400005410",
+          "resources": [
+            {
+              "resource_id": "7677586018124843009",
+              "type": "ranked_track",
+              "entity": {
+                "ranked_track": {
+                  "rank": {
+                    "rank_delta": "0",
+                    "rank_type": "equal",
+                    "track_id": "7677586018124843009"
+                  },
+                  "track": {
+                    "id": "7677586018124843009",
+                    "name": "Copines (Techno Version)",
+                    "duration": 169955,
+                    "media_type": "track",
+                    "vid": "examplevid0015",
+                    "state": {},
+                    "stats": {
+                      "count_collected": 327256,
+                      "count_comment": 231,
+                      "count_shared": 3965
+                    },
+                    "preview": {
+                      "duration": 30001,
+                      "start": 32256,
+                      "vid": "examplevid0016",
+                      "bit_rates": [
+                        {
+                          "br": 68695,
+                          "size": 257607,
+                          "quality": "medium"
+                        },
+                        {
+                          "br": 132701,
+                          "size": 497630,
+                          "quality": "higher"
+                        },
+                        {
+                          "br": 260774,
+                          "size": 977903,
+                          "quality": "highest"
+                        }
+                      ]
+                    },
+                    "label_info": {
+                      "only_vip_download": true,
+                      "only_vip_playable": true,
+                      "quality_only_vip_can_download": [
+                        "medium",
+                        "higher",
+                        "highest",
+                        "lossless"
+                      ],
+                      "quality_only_vip_can_play": [
+                        "lossless"
+                      ],
+                      "is_original": true,
+                      "quality_map": {
+                        "medium": {
+                          "play_detail": {
+                            "condition": "benefit_play_medium",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_medium",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "higher": {
+                          "play_detail": {
+                            "condition": "benefit_play_higher",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_higher",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "highest": {
+                          "play_detail": {
+                            "condition": "benefit_play_highest",
+                            "need_vip": false,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_highest",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "lossless": {
+                          "play_detail": {
+                            "condition": "benefit_play_lossless",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_lossless",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "spatial": {
+                          "play_detail": {
+                            "condition": "benefit_play_spatial",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": {
+                            "condition": "benefit_download_spatial",
+                            "need_vip": true,
+                            "need_purchase": false
+                          }
+                        },
+                        "hi_res": {
+                          "play_detail": {
+                            "condition": "benefit_play_hi_res",
+                            "need_vip": true,
+                            "need_purchase": false
+                          },
+                          "download_detail": null
+                        }
+                      }
+                    },
+                    "bit_rates": [
+                      {
+                        "br": 68238,
+                        "size": 1449675,
+                        "quality": "medium"
+                      },
+                      {
+                        "br": 132229,
+                        "size": 2809131,
+                        "quality": "higher"
+                      },
+                      {
+                        "br": 260272,
+                        "size": 5529320,
+                        "quality": "highest"
+                      }
+                    ],
+                    "audition_info": {
+                      "vid": "examplevid0016",
+                      "start_time_ms": 32256,
+                      "duration_ms": 30001
+                    },
+                    "limited_free_info": null,
+                    "playable_range": {
+                      "duration": 21503,
+                      "start": 32256
+                    },
+                    "album": {
+                      "id": "7677586018124826625",
+                      "name": "Copines (Techno Version)",
+                      "release_date": 1788451200,
+                      "url_cover": {
+                        "uri": "tos-cn-v-2774c002/oQic7WUvdABiYBYrSgHDAA53AaVEAitCEQ1qI",
+                        "urls": [
+                          "https://p3-luna.douyinpic.com/img/",
+                          "https://p6-luna.douyinpic.com/img/"
+                        ],
+                        "template_prefix": "tplv-b829550vbb"
+                      },
+                      "url_player_bg": {
+                        "uri": "tos-cn-v-2774c002/oQic7WUvdABiYBYrSgHDAA53AaVEAitCEQ1qI",
+                        "urls": [
+                          "https://p3-luna.douyinpic.com/img/",
+                          "https://p6-luna.douyinpic.com/img/"
+                        ],
+                        "template": "background:${width}:${height}:30:90:0",
+                        "template_prefix": "tplv-b829550vbb"
+                      }
+                    },
+                    "artists": [
+                      {
+                        "id": "6902639642504992769",
+                        "name": "Marla Malvins",
+                        "url_avatar": {
+                          "uri": "tos-cn-v-2774c002/ow0AADWImAFHDeefaA1YWgObdBzuWFn3EIsCA0",
+                          "urls": [
+                            "https://p3-luna.douyinpic.com/img/",
+                            "https://p6-luna.douyinpic.com/img/"
+                          ],
+                          "template_prefix": "tplv-b829550vbb"
+                        },
+                        "simple_display_name": "Marla Malvins"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "…（本榜其余条目省略，结构相同）"
+          ]
+        }
+      ]
+    }
+  ]
+}

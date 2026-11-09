@@ -1,0 +1,394 @@
+{
+  "status_info": {
+    "now": 1794212251,
+    "now_ts_ms": 1794212251441
+  },
+  "has_more": true,
+  "items": [
+    {
+      "id": "7675014288203024436",
+      "type": "track",
+      "entity": {
+        "track_wrapper": {
+          "track": {
+            "id": "7675014288203024436",
+            "name": "草原最美是牧歌",
+            "duration": 297195,
+            "media_type": "track",
+            "vid": "examplevid0003",
+            "state": {},
+            "stats": {
+              "count_collected": 44241,
+              "count_comment": 259,
+              "count_shared": 4778
+            },
+            "preview": {},
+            "label_info": {
+              "only_vip_download": true,
+              "quality_only_vip_can_download": [
+                "medium",
+                "higher",
+                "highest",
+                "lossless"
+              ],
+              "quality_only_vip_can_play": [
+                "lossless"
+              ],
+              "quality_map": {
+                "hi_res": {
+                  "play_detail": {
+                    "condition": "benefit_play_hi_res",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": null
+                },
+                "higher": {
+                  "play_detail": {
+                    "condition": "benefit_play_higher",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_higher",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "highest": {
+                  "play_detail": {
+                    "condition": "benefit_play_highest",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_highest",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "lossless": {
+                  "play_detail": {
+                    "condition": "benefit_play_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "medium": {
+                  "play_detail": {
+                    "condition": "benefit_play_medium",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_medium",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "spatial": {
+                  "play_detail": {
+                    "condition": "benefit_play_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                }
+              }
+            },
+            "bit_rates": [
+              {
+                "br": 68194,
+                "size": 2533401,
+                "quality": "medium"
+              },
+              {
+                "br": 132196,
+                "size": 4911026,
+                "quality": "higher"
+              },
+              {
+                "br": 260217,
+                "size": 9666947,
+                "quality": "highest"
+              }
+            ],
+            "limited_free_info": null,
+            "playable_range": {
+              "duration": 30720,
+              "start": 230208
+            },
+            "album": {
+              "id": "7675014288202991668",
+              "name": "草原最美的牧歌",
+              "release_date": 1786924802,
+              "url_cover": {
+                "uri": "tos-cn-v-2774c002/ooIVfLgaIECEA8BfkDeY2AjFzAOEVGG3BAKxCF",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template_prefix": "tplv-b829550vbb"
+              },
+              "url_player_bg": {
+                "uri": "tos-cn-v-2774c002/ooIVfLgaIECEA8BfkDeY2AjFzAOEVGG3BAKxCF",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template": "background:${width}:${height}:30:90:0",
+                "template_prefix": "tplv-b829550vbb"
+              }
+            },
+            "artists": [
+              {
+                "id": "7656798815135909898",
+                "name": "夏柚",
+                "url_avatar": {
+                  "uri": "tos-cn-v-2774c002/oAIdBBZ0CknyAthasAEQ8AibJPgWEA1yyiARr",
+                  "urls": [
+                    "https://p3-luna.douyinpic.com/img/",
+                    "https://p6-luna.douyinpic.com/img/"
+                  ],
+                  "template_prefix": "tplv-b829550vbb"
+                },
+                "simple_display_name": "夏柚"
+              }
+            ]
+          },
+          "limited_free_info": {
+            "queue_types": null,
+            "limited_free": false,
+            "expire_time": 1794385051,
+            "sign": "example-sign",
+            "sign_version": "2.0",
+            "limited_free_type": "",
+            "rewind_prev_intercept_type": "",
+            "intercept_type": "",
+            "track_value": ""
+          }
+        }
+      }
+    },
+    {
+      "id": "7481896773734500369",
+      "type": "track",
+      "entity": {
+        "track_wrapper": {
+          "track": {
+            "id": "7481896773734500369",
+            "name": "我的泪换不回玫瑰",
+            "duration": 167637,
+            "media_type": "track",
+            "vid": "examplevid0012",
+            "state": {},
+            "stats": {
+              "count_collected": 187868,
+              "count_comment": 297,
+              "count_shared": 4758
+            },
+            "preview": {
+              "duration": 59920,
+              "start": 107712,
+              "vid": "examplevid0001",
+              "bit_rates": [
+                {
+                  "br": 68451,
+                  "size": 512794,
+                  "quality": "medium"
+                },
+                {
+                  "br": 132409,
+                  "size": 991932,
+                  "quality": "higher"
+                },
+                {
+                  "br": 260460,
+                  "size": 1951210,
+                  "quality": "highest"
+                }
+              ]
+            },
+            "label_info": {
+              "only_vip_download": true,
+              "only_vip_playable": true,
+              "quality_only_vip_can_download": [
+                "medium",
+                "higher",
+                "highest",
+                "lossless"
+              ],
+              "quality_only_vip_can_play": [
+                "lossless"
+              ],
+              "is_original": true,
+              "quality_map": {
+                "hi_res": {
+                  "play_detail": {
+                    "condition": "benefit_play_hi_res",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": null
+                },
+                "higher": {
+                  "play_detail": {
+                    "condition": "benefit_play_higher",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_higher",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "highest": {
+                  "play_detail": {
+                    "condition": "benefit_play_highest",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_highest",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "lossless": {
+                  "play_detail": {
+                    "condition": "benefit_play_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_lossless",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "medium": {
+                  "play_detail": {
+                    "condition": "benefit_play_medium",
+                    "need_vip": false,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_medium",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                },
+                "spatial": {
+                  "play_detail": {
+                    "condition": "benefit_play_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  },
+                  "download_detail": {
+                    "condition": "benefit_download_spatial",
+                    "need_vip": true,
+                    "need_purchase": false
+                  }
+                }
+              }
+            },
+            "bit_rates": [
+              {
+                "br": 66169,
+                "size": 1386557,
+                "quality": "medium"
+              },
+              {
+                "br": 132237,
+                "size": 2771000,
+                "quality": "higher"
+              },
+              {
+                "br": 260266,
+                "size": 5453828,
+                "quality": "highest"
+              }
+            ],
+            "audition_info": {
+              "vid": "examplevid0001",
+              "start_time_ms": 107712,
+              "duration_ms": 59920
+            },
+            "limited_free_info": {
+              "queue_types": [],
+              "expire_time": 0,
+              "sign": "",
+              "sign_version": "",
+              "limited_free_type": "",
+              "rewind_prev_intercept_type": "",
+              "intercept_type": ""
+            },
+            "playable_range": {
+              "duration": 25728,
+              "start": 54336
+            },
+            "album": {
+              "id": "7481896760345380865",
+              "name": "我的泪换不回玫瑰",
+              "release_date": 1742227200,
+              "url_cover": {
+                "uri": "tos-cn-v-2774c002/okLoZVwgriAjYAFzBxAAECEVfTWD3AAojB2s6i",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template_prefix": "tplv-b829550vbb"
+              },
+              "url_player_bg": {
+                "uri": "tos-cn-v-2774c002/okLoZVwgriAjYAFzBxAAECEVfTWD3AAojB2s6i",
+                "urls": [
+                  "https://p3-luna.douyinpic.com/img/",
+                  "https://p6-luna.douyinpic.com/img/"
+                ],
+                "template": "background:${width}:${height}:30:90:0",
+                "template_prefix": "tplv-b829550vbb"
+              }
+            },
+            "artists": [
+              {
+                "id": "7308618717053716481",
+                "name": "渔羊",
+                "url_avatar": {
+                  "uri": "tos-cn-v-2774c002/oQCrKBAAcgiATEzcWhAVWAa6agEPzYUFBViUg",
+                  "urls": [
+                    "https://p3-luna.douyinpic.com/img/",
+                    "https://p6-luna.douyinpic.com/img/"
+                  ],
+                  "template_prefix": "tplv-b829550vbb"
+                },
+                "simple_display_name": "渔羊"
+              }
+            ]
+          },
+          "limited_free_info": {
+            "queue_types": null,
+            "limited_free": false,
+            "expire_time": 1794385051,
+            "sign": "example-sign",
+            "sign_version": "2.0",
+            "limited_free_type": "ad_vip_song_guide_new",
+            "rewind_prev_intercept_type": "",
+            "intercept_type": "ads",
+            "track_value": ""
+          }
+        }
+      }
+    }
+  ],
+  "predict_info": {}
+}
