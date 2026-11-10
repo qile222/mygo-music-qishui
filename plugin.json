@@ -1,7 +1,7 @@
 {
   "id": "qishui",
   "name": "汽水音乐",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "minAppVersion": "0.1.22",
   "main": "index.js",
   "playback": "stream",
@@ -25,6 +25,11 @@
       "builtin": "home",
       "title": "首页",
       "icon": "home"
+    },
+    {
+      "builtin": "stations",
+      "title": "听歌模式",
+      "icon": "radio"
     },
     {
       "page": "discover",

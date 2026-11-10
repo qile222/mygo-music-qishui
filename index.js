@@ -91,11 +91,24 @@ function parseData(text) {
       continue;
     }
     if (ch === "-" || (ch >= "0" && ch <= "9")) {
+      // 扫描完整的数字 token（含小数和指数），只给“纯整数且 >=16 位”加引号。
+      // 如果只扫整数部分，浮点小数部分会被当成新数字误加引号，变成 0."123...”
       let j = i + (ch === "-" ? 1 : 0);
       while (j < n && text[j] >= "0" && text[j] <= "9") j++;
-      const digits = j - i - (ch === "-" ? 1 : 0);
-      const next = text[j];
-      const plainInteger = digits > 0 && next !== "." && next !== "e" && next !== "E";
+      let plainInteger = true;
+      if (text[j] === ".") {
+        plainInteger = false;
+        j++;
+        while (j < n && text[j] >= "0" && text[j] <= "9") j++;
+      }
+      if (text[j] === "e" || text[j] === "E") {
+        plainInteger = false;
+        j++;
+        if (text[j] === "+" || text[j] === "-") j++;
+        while (j < n && text[j] >= "0" && text[j] <= "9") j++;
+      }
+      const starts = i + (ch === "-" ? 1 : 0);
+      const digits = plainInteger ? j - starts : 0;
       if (plainInteger && digits >= 16) {
         out += '"' + text.slice(i, j) + '"';
       } else {
@@ -183,6 +196,12 @@ let session = null;
 let epoch = 0;
 let discoverCache = null;
 let likedCache = null;
+let feedModeCache = null;
+let discoverMixCache = null;
+let discoverRadioCache = null;
+let songTabCache = null;
+const STATION_CACHE_MS = 5 * 60 * 1000;
+const stationStates = {};
 
 function currentSession() {
   if (!session) {
@@ -937,10 +956,295 @@ async function discoverData(force) {
   return data;
 }
 
+// ---------- 听歌模式 / 私人漫游 ----------
+// 汽水的「听歌模式」是 45 个场景模式里的常用项，加上「探索更多新模式」里按账号
+// 推荐的电台。两者都可以走 PC 网页接口（带登录 Cookie，不需要签名），所以非 macOS
+// 也能拿到完整列表；真正播放时仍由 App 调用 stationNext 一页页取歌。
+
+const RECOMMEND_STATION = {
+  id: "recommendations",
+  name: "私人漫游",
+  description: "根据你的口味持续推荐歌曲",
+  imageUrl: "",
+};
+
+const COMMON_MODE_DEFS = [
+  { id: "preference:familiar", name: "熟悉模式", description: "熟悉的歌，慢慢听" },
+  { id: "preference:fresh", name: "新鲜模式", description: "没听过的歌，换点新鲜的" },
+  { id: "scene:9", name: "抖音漫游", description: "刷到停不下来的热歌" },
+  { id: "scene:34", name: "摸鱼", description: "工作间隙，偷偷听点" },
+  { id: "scene:33", name: "驾车", description: "路上有音乐，堵车也不烦" },
+  { id: "scene:5", name: "快乐时光", description: "把快乐放大声" },
+  { id: "scene:3", name: "Chill 放松", description: "放松一下，慢慢呼吸" },
+  { id: "scene:6", name: "专注模式", description: "专心做事时的背景音" },
+];
+
+function modeRowsOf(data) {
+  const rows = [];
+  const seen = {};
+  for (const block of (data && data.feed_mode_block) || []) {
+    for (const entry of block.feed_mode || []) {
+      const scene = entry && entry.entity && entry.entity.feed_scene_mode;
+      if (!scene || scene.scene_mode_id === undefined) continue;
+      const id = String(scene.scene_mode_id);
+      if (seen[id]) continue;
+      seen[id] = true;
+      rows.push({
+        id,
+        name: entry.text || "场景音乐",
+        description: entry.cutover_toast || "",
+        imageUrl: coverURL(entry.url_info, 400),
+      });
+    }
+  }
+  return rows;
+}
+
+async function feedModeRows(force) {
+  if (!force && feedModeCache && Date.now() - feedModeCache.at < STATION_CACHE_MS) {
+    return feedModeCache.rows;
+  }
+  let rows = [];
+  try {
+    rows = modeRowsOf(await pc("/luna/pc/feed/mode", { body: {} }));
+  } catch (error) {
+    rows = [];
+  }
+  feedModeCache = { at: Date.now(), rows };
+  return rows;
+}
+
+function radioStationsOf(data) {
+  const rows = [];
+  const seen = {};
+  for (const block of (data && data.blocks) || []) {
+    for (const inner of block.inner_block || []) {
+      for (const resource of inner.resources || []) {
+        if (!resource || resource.type !== "radio") continue;
+        const style = resource.style || {};
+        const id = String(resource.resource_id || inner.inner_block_id || "");
+        if (!id || seen[id]) continue;
+        seen[id] = true;
+        rows.push({
+          id: "radio:" + id,
+          name: style.title || inner.title || "电台",
+          description: style.desc || "根据你的喜好推荐歌曲",
+          imageUrl: coverURL((style.cover_url_list || [])[0] || style.cover_url, 400),
+        });
+      }
+    }
+  }
+  return rows;
+}
+
+async function discoveryRadioStations(force) {
+  if (!force && discoverRadioCache && Date.now() - discoverRadioCache.at < STATION_CACHE_MS) {
+    return discoverRadioCache.rows;
+  }
+  let rows = [];
+  try {
+    const data = await pc("/luna/pc/discover", {
+      body: { first_request: true, pc_new_discover_request: true },
+    });
+    rows = radioStationsOf(data);
+  } catch (error) {
+    rows = [];
+  }
+  discoverRadioCache = { at: Date.now(), rows };
+  return rows;
+}
+
+// 官方「听歌模式」页：私人漫游 + 8 个常用模式 + 探索更多新模式（按账号推荐的电台）。
+export async function stations() {
+  const modes = await feedModeRows();
+  const radios = await discoveryRadioStations();
+  const byScene = {};
+  for (const mode of modes) byScene[mode.id] = mode;
+  const list = [RECOMMEND_STATION];
+  for (const def of COMMON_MODE_DEFS) {
+    const scene = def.id.indexOf("scene:") === 0 ? byScene[def.id.slice(6)] : null;
+    list.push({
+      id: def.id,
+      name: scene ? scene.name : def.name,
+      description: def.description,
+      imageUrl: scene ? scene.imageUrl : "",
+    });
+  }
+  for (const radio of radios) {
+    if (list.length >= 24) break;
+    list.push(radio);
+  }
+  return list;
+}
+
+function feedPreferenceOf(id) {
+  if (id === "recommendations") return null;
+  if (id.indexOf("preference:") === 0) {
+    const mode = id.slice("preference:".length);
+    if (mode === "familiar" || mode === "fresh") return { preference_mode: mode };
+    throw fail("unsupported", "不支持这个听歌模式");
+  }
+  if (id.indexOf("scene:") === 0) {
+    const value = Number(id.slice("scene:".length));
+    if (Number.isSafeInteger(value) && value >= 0) return { scene_mode_id: value };
+  }
+  throw fail("unsupported", "不支持这个听歌模式");
+}
+
+function stationState(id) {
+  let state = stationStates[id];
+  if (!state) {
+    const keys = Object.keys(stationStates);
+    if (keys.length >= 64) delete stationStates[keys[0]];
+    state = { count: 0, played: [], seen: {}, cursor: "", done: false };
+    stationStates[id] = state;
+  }
+  return state;
+}
+
+function rememberStationTracks(state, tracks) {
+  const fresh = [];
+  for (const track of tracks) {
+    if (!track || state.seen[track.id]) continue;
+    state.seen[track.id] = true;
+    fresh.push(track);
+    state.played.push({ id: track.id, duration: Number(track.duration) || 0 });
+  }
+  state.played = state.played.slice(-30);
+  // 一批全是刚才听过的歌时清空去重表，避免电台卡住不再出歌。
+  if (!fresh.length && tracks.length) {
+    state.seen = {};
+    for (const track of tracks) state.seen[track.id] = true;
+    return tracks;
+  }
+  return fresh;
+}
+
+async function stationNextFeed(id) {
+  const state = stationState(id);
+  const count = state.count + 1;
+  state.count = count;
+  const body = {
+    played_media: state.played.map((track) => ({
+      type: "track",
+      media_id: track.id,
+      duration: Math.floor((Number(track.duration) || 0) / 1000),
+      played_mills: -1,
+    })),
+    is_first_request: count === 1,
+    is_did_first_request: false,
+    feed_counts: { mix_session_count: count },
+  };
+  const preference = feedPreferenceOf(id);
+  if (preference) body.feed_preference = preference;
+  let data;
+  try {
+    data = await pc("/luna/pc/feed/song-tab", { body, timeoutMs: 20000 });
+  } catch (error) {
+    state.count -= 1;
+    throw error;
+  }
+  const tracks = trackList(
+    (data.items || []).map((item) => rawTrackOf(item && item.entity)).filter(Boolean)
+  );
+  return rememberStationTracks(state, tracks);
+}
+
+async function stationNextRadio(radioID) {
+  const id = "radio:" + radioID;
+  const state = stationState(id);
+  if (state.done) return [];
+  const body = { radio_id: radioID, count: 6 };
+  if (state.cursor) body.cursor = state.cursor;
+  const data = await pc("/luna/pc/feed/radio/tracks", { body, timeoutMs: 20000 });
+  if (data.next_cursor !== undefined && data.next_cursor !== null && String(data.next_cursor) !== "") {
+    state.cursor = String(data.next_cursor);
+  }
+  if (data.has_more === false) state.done = true;
+  state.count += 1;
+  const tracks = trackList(
+    (data.items || []).map((item) => rawTrackOf(item && item.entity)).filter(Boolean)
+  );
+  return rememberStationTracks(state, tracks);
+}
+
+export async function stationNext({ id }) {
+  requireSignedIn("登录汽水音乐后才能播放个人电台");
+  const key = String(id === undefined || id === null ? "" : id).trim();
+  if (!key) throw fail("unsupported", "没有这个电台");
+  if (key.indexOf("radio:") === 0) {
+    const radioID = key.slice("radio:".length);
+    if (!/^\d{1,20}$/.test(radioID)) throw fail("unsupported", "没有这个电台");
+    return stationNextRadio(radioID);
+  }
+  return stationNextFeed(key);
+}
+
+// 首页「推荐」的第一块：官方推荐流是电台，先把私人漫游入口放在最上面。
+// 真正取歌由 stationNext 负责，这里只给一张卡片。
+function personalRadioSection() {
+  return { title: "私人漫游", subtitle: "根据你的口味持续推荐", stations: [RECOMMEND_STATION] };
+}
+
+// ---------- PC 发现页 ----------
+// 旧的 /luna/discover 与首页共用同一份歌单，导致「发现」和「首页」第一屏一模一样。
+// PC 发现页的编辑精选和猜你喜欢是另外两组数据，且带 Cookie 即个性化。
+
+function pcDiscoverPlaylists(data) {
+  const rows = [];
+  const seen = {};
+  for (const inner of (data && data.inner_block) || []) {
+    for (const resource of inner.resources || []) {
+      if (!resource || resource.type !== "playlist") continue;
+      const raw = resource.entity && resource.entity.playlist;
+      const item = toPlaylist(raw);
+      if (!item || !item.id || seen[item.id]) continue;
+      seen[item.id] = true;
+      rows.push(item);
+    }
+  }
+  return rows;
+}
+
+async function discoverMixPlaylists(force) {
+  if (!force && discoverMixCache && Date.now() - discoverMixCache.at < STATION_CACHE_MS) {
+    return discoverMixCache.rows;
+  }
+  let rows = [];
+  try {
+    rows = pcDiscoverPlaylists(await pc("/luna/pc/discover/mix", { body: {} }));
+  } catch (error) {
+    rows = [];
+  }
+  discoverMixCache = { at: Date.now(), rows };
+  return rows;
+}
+
+async function songTabTracks(force) {
+  if (!force && songTabCache && Date.now() - songTabCache.at < STATION_CACHE_MS) {
+    return songTabCache.tracks;
+  }
+  let tracks = [];
+  try {
+    const data = await pc("/luna/pc/feed/song-tab", {
+      body: { cursor: "", count: 20 },
+      timeoutMs: 20000,
+    });
+    tracks = trackList(
+      (data.items || []).map((item) => rawTrackOf(item && item.entity)).filter(Boolean)
+    );
+  } catch (error) {
+    tracks = [];
+  }
+  songTabCache = { at: Date.now(), tracks };
+  return tracks;
+}
+
 export async function home() {
   warmSignature();
   const data = await discoverData();
   const sections = [];
+  if (signedIn()) sections.push(personalRadioSection());
   const playlistBlock = (data.blocks || []).find(
     (item) => item && item.type === "discover_feed_playlist"
   );
@@ -972,15 +1276,27 @@ export async function home() {
 export async function browse({ page }) {
   const name = String(page || "");
   if (name === "discover") {
+    const [playlists, tracks] = await Promise.all([discoverMixPlaylists(), songTabTracks()]);
+    if (playlists.length || tracks.length) {
+      const sections = [];
+      if (playlists.length) sections.push({ title: "编辑精选", playlists });
+      if (tracks.length) sections.push({ title: "猜你喜欢", tracks });
+      return {
+        title: "发现",
+        subtitle: "汽水音乐 · 编辑精选与个性化推荐",
+        sections,
+      };
+    }
+    // PC 接口失败时退回旧的 APP 发现页，至少不要白屏。
     const data = await discoverData();
     const block = (data.blocks || []).find(
       (item) => item && item.type === "discover_feed_playlist"
     );
-    const playlists = block ? discoverPlaylists(block) : [];
+    const fallback = block ? discoverPlaylists(block) : [];
     return {
       title: "发现",
       subtitle: "汽水音乐 · 编辑精选歌单",
-      sections: [{ title: "推荐歌单", playlists, empty: "暂时没有推荐歌单" }],
+      sections: [{ title: "推荐歌单", playlists: fallback, empty: "暂时没有推荐歌单" }],
     };
   }
   if (name === "charts") {
