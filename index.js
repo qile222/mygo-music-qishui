@@ -50,9 +50,20 @@ function fail(code, message) {
   return error;
 }
 
+// UI text goes through host.t with an English key; MyGo looks it up in
+// locales/<language>.json and falls back to the key for English.
+function tr(text) {
+  try {
+    if (typeof host.t === "function") return String(host.t(text));
+  } catch (error) {
+    // fall back to the English key
+  }
+  return text;
+}
+
 function asID(value) {
   const text = String(value === undefined || value === null ? "" : value).trim();
-  if (!/^\d{1,20}$/.test(text)) throw new Error("无效的汽水音乐 ID");
+  if (!/^\d{1,20}$/.test(text)) throw new Error(tr("Invalid Qishui ID"));
   return text;
 }
 
@@ -241,7 +252,7 @@ function clearSession() {
 }
 
 function checkEpoch(startedEpoch) {
-  if (startedEpoch !== epoch) throw new Error("账号状态已改变，请重试");
+  if (startedEpoch !== epoch) throw new Error(tr("Account state changed, please try again"));
 }
 
 // ---------- HTTP ----------
@@ -270,16 +281,16 @@ async function fetchText(url, options) {
     response = await fetch(url, init);
     text = await response.text();
   } catch (error) {
-    if (controller.signal.aborted) throw new Error("汽水音乐请求超时，请稍后重试");
-    throw new Error("无法连接汽水音乐，请检查网络或系统代理后重试");
+    if (controller.signal.aborted) throw new Error(tr("Qishui request timed out. Please try again."));
+    throw new Error(tr("Couldn't reach Qishui Music. Check your network or system proxy and try again."));
   } finally {
     clearTimeout(timer);
   }
   if (response.status === 401 || response.status === 403) {
-    throw fail("signIn", "汽水音乐登录状态已失效，请重新扫码登录");
+    throw fail("signIn", tr("Your Qishui session has expired. Please sign in again."));
   }
   if (!response.ok && !opts.allowStatus) {
-    throw new Error("汽水音乐请求失败（HTTP " + response.status + "）");
+    throw new Error(tr("Qishui request failed (HTTP ") + response.status + ")");
   }
   if (jar) acceptCookies(response, jar);
   return text;
@@ -287,19 +298,19 @@ async function fetchText(url, options) {
 
 function payloadFrom(text) {
   const data = text ? parseData(text) : {};
-  if (!data || typeof data !== "object") throw new Error("汽水音乐返回了无法识别的响应");
+  if (!data || typeof data !== "object") throw new Error(tr("Qishui returned an unrecognized response"));
   const code = data.status_code === undefined ? 0 : Number(data.status_code);
-  if (code === 1000016) throw fail("signIn", "汽水音乐登录状态已失效，请重新扫码登录");
+  if (code === 1000016) throw fail("signIn", tr("Your Qishui session has expired. Please sign in again."));
   if (code && code !== 200) {
     const info = data.status_info || {};
     const message = String(info.status_msg || "");
     if (message === "ERR_INVALID_PARAM") {
-      throw new Error("汽水音乐没有接受这次请求的参数，请稍后重试");
+      throw new Error(tr("Qishui rejected the request parameters. Please try again."));
     }
     throw new Error(
       message && message !== "success"
-        ? "汽水音乐接口返回错误：" + message
-        : "汽水音乐接口返回错误，请稍后重试"
+        ? tr("Qishui API error: ") + message
+        : tr("Qishui API error. Please try again later.")
     );
   }
   return data;
@@ -342,9 +353,9 @@ async function pc(path, options) {
 // macOS 上启用；Windows / Linux 不启动任何外部程序，只走匿名网页接口，能浏览、搜索、
 // 看歌词、播放普通曲目（会员曲目只有 30–60 秒试听，不解密）。
 const MAC_PLATFORM = "darwin";
-const PLATFORM_MESSAGE =
-  "完整播放和写操作目前只支持 macOS：需要本机安装官方汽水音乐客户端并允许插件启动程序。" +
-  "Windows/Linux 上可以浏览、搜索、查看歌词和播放普通曲目。";
+function platformMessage() {
+  return tr("Full playback and write actions are currently macOS only: install the official Qishui Music client and allow this plugin to launch programs. On Windows and Linux you can browse, search, view lyrics and play regular tracks.");
+}
 let platformCache = "";
 
 function platformName() {
@@ -575,11 +586,11 @@ function signerSetupError(message) {
   if (/allowed/i.test(message)) {
     return fail(
       "setup",
-      "播放完整歌曲需要允许插件启动程序：设置 → 汽水音乐 → Allow Programs（允许启动程序），然后重试"
+      tr("Allow this plugin to launch programs to play full songs: Settings → Qishui Music → Allow Programs, then retry")
     );
   }
   if (/process permission|isn't one of the programs/i.test(message)) {
-    return fail("setup", "插件没有启动签名程序的权限，请安装最新版本的汽水音乐插件");
+    return fail("setup", tr("This plugin isn't allowed to launch the signer. Please install the latest version of the Qishui plugin."));
   }
   return null;
 }
@@ -597,7 +608,7 @@ function stopSigner() {
 }
 
 async function launchSigner() {
-  if (!onMac()) throw fail("setup", PLATFORM_MESSAGE);
+  if (!onMac()) throw fail("setup", platformMessage());
   if (signerProc) return signerProc;
   if (!signerStarting) {
     signerStarting = (async function () {
@@ -614,7 +625,7 @@ async function launchSigner() {
           signerProc = proc;
           return proc;
         } catch (error) {
-          const message = brief(error && error.message) || "签名程序启动失败";
+          const message = brief(error && error.message) || tr("Couldn't start the signer");
           const mapped = signerSetupError(message);
           if (mapped) throw mapped;
           lastError = message;
@@ -622,8 +633,8 @@ async function launchSigner() {
       }
       throw fail(
         "unavailable",
-        "汽水音乐签名不可用（完整播放需要本机安装官方汽水音乐客户端并允许插件启动程序）：" +
-          (lastError || "未知错误")
+        tr("Qishui signing unavailable (full playback requires the official Qishui Music client installed on this Mac and permission for the plugin to launch programs): ") +
+          (lastError || tr("Unknown error"))
       );
     })();
     const pending = signerStarting;
@@ -679,13 +690,13 @@ async function exchangeSigner(request) {
     );
   } catch (error) {
     stopSigner();
-    throw fail("unavailable", "签名程序已退出，请重试");
+    throw fail("unavailable", tr("The signer exited. Please try again."));
   }
   for (;;) {
     const line = await readSignerLine(proc, 20000);
     if (!line) {
       stopSigner();
-      throw fail("unavailable", "等待签名超时，请重试");
+      throw fail("unavailable", tr("Timed out waiting for the signer. Please try again."));
     }
     let message = null;
     try {
@@ -695,14 +706,14 @@ async function exchangeSigner(request) {
     }
     if (!message || Number(message.id) !== id) continue;
     if (request.warm) {
-      if (message.error) throw fail("unavailable", "签名程序初始化失败：" + brief(message.error));
+      if (message.error) throw fail("unavailable", tr("Signer initialization failed: ") + brief(message.error));
       return null;
     }
-    if (message.error) throw fail("unavailable", "签名失败：" + brief(message.error));
+    if (message.error) throw fail("unavailable", tr("Signing failed: ") + brief(message.error));
     if (message["x-helios"] && message["x-medusa"]) {
       return { "x-helios": message["x-helios"], "x-medusa": message["x-medusa"] };
     }
-    throw fail("unavailable", "签名结果不完整，请重试");
+    throw fail("unavailable", tr("Incomplete signing result. Please try again."));
   }
 }
 
@@ -736,7 +747,7 @@ async function signatureFor(url, headers) {
   const key = signatureKey(url, headers);
   const cached = signatureCache.get(key);
   if (cached && Date.now() - cached.at < SIGNATURE_TTL) return cached.signature;
-  if (!onMac()) throw fail("setup", PLATFORM_MESSAGE);
+  if (!onMac()) throw fail("setup", platformMessage());
   const signature = await signMessage({ url, headers, deviceId: deviceProfile().id });
   signatureCache.set(key, { signature, at: Date.now() });
   while (signatureCache.size > SIGNATURE_CACHE_LIMIT) {
@@ -783,8 +794,8 @@ async function signedSend(method, url, headers, signature, data) {
     }
     return { response, text };
   } catch (error) {
-    if (controller.signal.aborted) throw new Error("汽水音乐请求超时，请稍后重试");
-    throw new Error("无法连接汽水音乐，请检查网络或系统代理后重试");
+    if (controller.signal.aborted) throw new Error(tr("Qishui request timed out. Please try again."));
+    throw new Error(tr("Couldn't reach Qishui Music. Check your network or system proxy and try again."));
   } finally {
     clearTimeout(timer);
   }
@@ -812,11 +823,11 @@ async function signedRequest(path, body, query) {
   }
   const response = result.response;
   if (response.status === 401 || response.status === 403) {
-    throw fail("signIn", "汽水音乐登录状态已失效，请重新扫码登录");
+    throw fail("signIn", tr("Your Qishui session has expired. Please sign in again."));
   }
-  if (!response.ok) throw new Error("汽水音乐请求失败（HTTP " + response.status + "）");
+  if (!response.ok) throw new Error(tr("Qishui request failed (HTTP ") + response.status + ")");
   if (jar) acceptCookies(response, jar);
-  if (!result.text) throw fail("unavailable", "汽水音乐返回了空响应，请稍后重试");
+  if (!result.text) throw fail("unavailable", tr("Qishui returned an empty response. Please try again later."));
   return payloadFrom(result.text);
 }
 
@@ -862,7 +873,7 @@ function toAlbum(raw) {
   if (!raw) return { id: "", name: "" };
   return {
     id: raw.id === undefined || raw.id === null ? "" : String(raw.id),
-    name: raw.name || "未知专辑",
+    name: raw.name || tr("Unknown album"),
     imageUrl: coverURL(raw.url_cover || raw.url_avatar, 320),
     artists: (Array.isArray(raw.artists) ? raw.artists : []).map(toArtist).filter(Boolean),
     released: dateText(raw.release_date),
@@ -941,7 +952,7 @@ function discoverCharts(data) {
     }
     const tracks = trackList(list);
     if (tracks.length) {
-      charts.push({ title: inner.title || "榜单", description: inner.desc || "", tracks });
+      charts.push({ title: inner.title || tr("Charts"), description: inner.desc || "", tracks });
     }
   }
   return charts;
@@ -963,20 +974,20 @@ async function discoverData(force) {
 
 const RECOMMEND_STATION = {
   id: "recommendations",
-  name: "私人漫游",
-  description: "根据你的口味持续推荐歌曲",
+  name: "Private Radio",
+  description: "Endless music picked for your taste",
   imageUrl: "",
 };
 
 const COMMON_MODE_DEFS = [
-  { id: "preference:familiar", name: "熟悉模式", description: "熟悉的歌，慢慢听" },
-  { id: "preference:fresh", name: "新鲜模式", description: "没听过的歌，换点新鲜的" },
-  { id: "scene:9", name: "抖音漫游", description: "刷到停不下来的热歌" },
-  { id: "scene:34", name: "摸鱼", description: "工作间隙，偷偷听点" },
-  { id: "scene:33", name: "驾车", description: "路上有音乐，堵车也不烦" },
-  { id: "scene:5", name: "快乐时光", description: "把快乐放大声" },
-  { id: "scene:3", name: "Chill 放松", description: "放松一下，慢慢呼吸" },
-  { id: "scene:6", name: "专注模式", description: "专心做事时的背景音" },
+  { id: "preference:familiar", name: "Familiar", description: "Songs you know, one after another" },
+  { id: "preference:fresh", name: "Fresh", description: "Something you haven't heard" },
+  { id: "scene:9", name: "Douyin Viral", description: "Songs you can't stop scrolling to" },
+  { id: "scene:34", name: "Slacking Off", description: "A soundtrack for sneaking in a listen at work" },
+  { id: "scene:33", name: "Driving", description: "Music for the road, traffic jams included" },
+  { id: "scene:5", name: "Happy Hour", description: "Turn the joy up" },
+  { id: "scene:3", name: "Chill", description: "Relax, breathe slowly" },
+  { id: "scene:6", name: "Focus", description: "Background music for getting things done" },
 ];
 
 function modeRowsOf(data) {
@@ -991,7 +1002,7 @@ function modeRowsOf(data) {
       seen[id] = true;
       rows.push({
         id,
-        name: entry.text || "场景音乐",
+        name: entry.text || tr("Scene radio"),
         description: entry.cutover_toast || "",
         imageUrl: coverURL(entry.url_info, 400),
       });
@@ -1027,8 +1038,8 @@ function radioStationsOf(data) {
         seen[id] = true;
         rows.push({
           id: "radio:" + id,
-          name: style.title || inner.title || "电台",
-          description: style.desc || "根据你的喜好推荐歌曲",
+          name: style.title || inner.title || tr("Radio"),
+          description: style.desc || tr("Picked for your taste"),
           imageUrl: coverURL((style.cover_url_list || [])[0] || style.cover_url, 400),
         });
       }
@@ -1072,13 +1083,15 @@ export async function stations() {
     if (!covers.length) return "";
     return covers[nextCover++ % covers.length];
   };
-  const list = [{ ...RECOMMEND_STATION, imageUrl: cover() }];
+  const list = [
+    { ...RECOMMEND_STATION, name: tr(RECOMMEND_STATION.name), description: tr(RECOMMEND_STATION.description), imageUrl: cover() },
+  ];
   for (const def of COMMON_MODE_DEFS) {
     const scene = def.id.indexOf("scene:") === 0 ? byScene[def.id.slice(6)] : null;
     list.push({
       id: def.id,
-      name: scene ? scene.name : def.name,
-      description: def.description,
+      name: tr(def.name),
+      description: tr(def.description),
       imageUrl: cover() || (scene ? scene.imageUrl : ""),
     });
   }
@@ -1099,13 +1112,13 @@ function feedPreferenceOf(id) {
   if (id.indexOf("preference:") === 0) {
     const mode = id.slice("preference:".length);
     if (mode === "familiar" || mode === "fresh") return { preference_mode: mode };
-    throw fail("unsupported", "不支持这个听歌模式");
+    throw fail("unsupported", tr("This listening mode isn't supported"));
   }
   if (id.indexOf("scene:") === 0) {
     const value = Number(id.slice("scene:".length));
     if (Number.isSafeInteger(value) && value >= 0) return { scene_mode_id: value };
   }
-  throw fail("unsupported", "不支持这个听歌模式");
+  throw fail("unsupported", tr("This listening mode isn't supported"));
 }
 
 function stationState(id) {
@@ -1186,12 +1199,12 @@ async function stationNextRadio(radioID) {
 }
 
 export async function stationNext({ id }) {
-  requireSignedIn("登录汽水音乐后才能播放个人电台");
+  requireSignedIn(tr("Sign in to Qishui Music to play personal radio"));
   const key = String(id === undefined || id === null ? "" : id).trim();
-  if (!key) throw fail("unsupported", "没有这个电台");
+  if (!key) throw fail("unsupported", tr("No such radio station"));
   if (key.indexOf("radio:") === 0) {
     const radioID = key.slice("radio:".length);
-    if (!/^\d{1,20}$/.test(radioID)) throw fail("unsupported", "没有这个电台");
+    if (!/^\d{1,20}$/.test(radioID)) throw fail("unsupported", tr("No such radio station"));
     return stationNextRadio(radioID);
   }
   return stationNextFeed(key);
@@ -1265,15 +1278,15 @@ export async function home() {
   const exploreStations = allStations.slice(9);
   if (commonStations.length) {
     sections.push({
-      title: "听歌模式",
-      subtitle: "私人漫游与常用模式，点卡片持续播放",
+      title: tr("Listening Modes"),
+      subtitle: tr("Private Radio and common modes. Tap a card to keep the music going."),
       stations: commonStations,
     });
   }
   if (exploreStations.length) {
     sections.push({
-      title: "探索电台",
-      subtitle: "更多场景与风格",
+      title: tr("Explore Radio"),
+      subtitle: tr("More scenes and styles"),
       stations: exploreStations,
     });
   }
@@ -1281,9 +1294,9 @@ export async function home() {
     (item) => item && item.type === "discover_feed_playlist"
   );
   const playlists = playlistBlock ? discoverPlaylists(playlistBlock) : [];
-  if (playlists.length) sections.push({ title: "推荐歌单", playlists: playlists.slice(0, 20) });
+  if (playlists.length) sections.push({ title: tr("Recommended Playlists"), playlists: playlists.slice(0, 20) });
   // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
-  return { title: "汽水音乐", subtitle: "听歌模式与推荐歌单", sections };
+  return { title: tr("Qishui Music"), sections };
 }
 
 export async function browse({ page }) {
@@ -1292,11 +1305,10 @@ export async function browse({ page }) {
     const [playlists, tracks] = await Promise.all([discoverMixPlaylists(), songTabTracks()]);
     if (playlists.length || tracks.length) {
       const sections = [];
-      if (playlists.length) sections.push({ title: "编辑精选", playlists });
-      if (tracks.length) sections.push({ title: "猜你喜欢", tracks });
+      if (playlists.length) sections.push({ title: tr("Editor's Picks"), playlists });
+      if (tracks.length) sections.push({ title: tr("For You"), tracks });
       return {
-        title: "发现",
-        subtitle: "汽水音乐 · 编辑精选与个性化推荐",
+        title: tr("Discover"),
         sections,
       };
     }
@@ -1307,16 +1319,14 @@ export async function browse({ page }) {
     );
     const fallback = block ? discoverPlaylists(block) : [];
     return {
-      title: "发现",
-      subtitle: "汽水音乐 · 编辑精选歌单",
-      sections: [{ title: "推荐歌单", playlists: fallback, empty: "暂时没有推荐歌单" }],
+      title: tr("Discover"),
+      sections: [{ title: tr("Recommended Playlists"), playlists: fallback, empty: tr("No recommendations right now") }],
     };
   }
   if (name === "charts") {
     const charts = discoverCharts(await discoverData());
     return {
-      title: "榜单",
-      subtitle: "汽水音乐 · 实时榜单",
+      title: tr("Charts"),
       sections: charts.map((chart) => ({
         title: chart.title,
         subtitle: chart.description || undefined,
@@ -1327,23 +1337,22 @@ export async function browse({ page }) {
   if (name.startsWith("chart:")) {
     const wanted = name.slice("chart:".length);
     const chart = discoverCharts(await discoverData()).find((item) => item.title === wanted);
-    if (!chart) throw fail("unsupported", "没有这个榜单");
+    if (!chart) throw fail("unsupported", tr("No such chart"));
     return {
       title: chart.title,
       subtitle: chart.description || undefined,
-      sections: [{ title: "全部歌曲", tracks: chart.tracks }],
+      sections: [{ title: tr("All Songs"), tracks: chart.tracks }],
     };
   }
   if (name === "history") {
-    if (!signedIn()) throw fail("signIn", "扫码登录汽水音乐后，这里会显示最近播放");
+    if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to see your listening history here"));
     const items = await recentTracks();
     return {
-      title: "最近播放",
-      subtitle: "汽水音乐 · 最近播放过的歌曲",
-      sections: [{ title: "歌曲", tracks: items, empty: "还没有最近播放的歌曲" }],
+      title: tr("Recently Played"),
+      sections: [{ title: tr("Songs"), tracks: items, empty: tr("No recently played songs yet") }],
     };
   }
-  throw fail("unsupported", "没有这个页面");
+  throw fail("unsupported", tr("No such page"));
 }
 
 // ---------- 搜索 ----------
@@ -1367,7 +1376,7 @@ const SEARCH_KINDS = {
 export async function search({ query, kind, offset }) {
   const text = String(query || "").trim();
   const type = SEARCH_KINDS[kind];
-  if (!type) throw fail("unsupported", "汽水音乐支持搜索歌曲、专辑、歌手和歌单");
+  if (!type) throw fail("unsupported", tr("Qishui Music supports searching songs, albums, artists and playlists"));
   const result = {};
   result[type.out] = [];
   result.more = false;
@@ -1442,7 +1451,7 @@ async function fetchProfile(jar) {
   if (!info || !info.id) return null;
   return {
     id: String(info.id),
-    name: info.nickname || info.name || "汽水音乐用户",
+    name: info.nickname || info.name || tr("Qishui user"),
     imageUrl: coverURL(info.larger_avatar_url || info.medium_avatar_url || info.avatar_url, 200),
   };
 }
@@ -1450,19 +1459,19 @@ async function fetchProfile(jar) {
 export async function signIn() {
   const startedEpoch = ++epoch;
   const jar = {};
-  host.signInPrompt({ text: "正在生成汽水音乐登录二维码…" });
+  host.signInPrompt({ text: tr("Generating a Qishui sign-in QR code…") });
   let qr;
   try {
     qr = await requestQRCode(jar);
   } catch (error) {
     if (error.code === "signIn") throw error;
-    throw new Error("无法生成登录二维码，请检查网络后重试");
+    throw new Error(tr("Couldn't generate the sign-in QR code. Check your network and try again."));
   }
   const data = qr && qr.data ? qr.data : {};
   const token = data.token;
   const qrURL = data.qrcode_index_url;
-  if (!token || !qrURL) throw new Error("汽水音乐没有返回登录二维码，请稍后重试");
-  host.signInPrompt({ qr: qrURL, text: "请用抖音 App 扫码，并在手机上确认登录汽水音乐" });
+  if (!token || !qrURL) throw new Error(tr("Qishui didn't return a sign-in QR code. Please try again later."));
+  host.signInPrompt({ qr: qrURL, text: tr("Scan with the Douyin app and confirm sign-in to Qishui Music on your phone") });
   const deadline = Date.now() + SIGN_IN_DEADLINE;
   let scanned = false;
   while (Date.now() < deadline) {
@@ -1484,7 +1493,7 @@ export async function signIn() {
     if (status === "scanned" || status === "scan" || status === "2") {
       if (!scanned) {
         scanned = true;
-        host.signInPrompt({ qr: qrURL, text: "已扫码，请在手机上确认登录" });
+        host.signInPrompt({ qr: qrURL, text: tr("QR code scanned. Please confirm sign-in on your phone.") });
       }
       continue;
     }
@@ -1499,10 +1508,10 @@ export async function signIn() {
       status === "3" ||
       status === "4"
     ) {
-      throw new Error("二维码已过期，请重新点击登录");
+      throw new Error(tr("The QR code expired. Please sign in again."));
     }
   }
-  throw new Error("登录已超时或取消，请重新点击登录");
+  throw new Error(tr("Sign-in timed out or was cancelled. Please sign in again."));
 }
 
 async function finishSignIn(jar, startedEpoch) {
@@ -1510,16 +1519,16 @@ async function finishSignIn(jar, startedEpoch) {
   try {
     profile = await fetchProfile(jar);
   } catch (error) {
-    if (error.code === "signIn") throw new Error("汽水音乐没有返回有效会话，请重新扫码登录");
+    if (error.code === "signIn") throw new Error(tr("Qishui didn't return a valid session. Please scan the QR code again."));
     throw error;
   }
-  if (!profile) throw new Error("无法读取已登录的汽水音乐账号，请重新扫码登录");
+  if (!profile) throw new Error(tr("Couldn't read the signed-in Qishui account. Please scan the QR code again."));
   checkEpoch(startedEpoch);
   session = { cookies: jar, profile, signedIn: true };
   discoverCache = null;
   likedCache = null;
   persistSession();
-  host.signInPrompt({ text: "登录成功" });
+  host.signInPrompt({ text: tr("Signed in successfully") });
   return profile;
 }
 
@@ -1567,7 +1576,7 @@ export async function album({ id }) {
   const data = results[0];
   const saved = results[1];
   const info = data.album_info;
-  if (!info) throw new Error("找不到这张专辑");
+  if (!info) throw new Error(tr("Couldn't find this album"));
   const item = toAlbum(info);
   item.saved = saved.has(albumID);
   return { album: item, tracks: trackList(data.tracks) };
@@ -1579,7 +1588,7 @@ export async function artist({ id }) {
   const data = results[0];
   const following = results[1];
   const info = data.artist_info;
-  if (!info) throw new Error("找不到这个歌手");
+  if (!info) throw new Error(tr("Couldn't find this artist"));
   const tracks = [];
   const seen = new Set();
   const push = (list) => {
@@ -1615,7 +1624,7 @@ async function myPlaylists() {
 }
 
 export async function playlists() {
-  if (!signedIn()) throw fail("signIn", "扫码登录汽水音乐后，这里会显示你的歌单");
+  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to see your playlists here"));
   const me = profileID();
   const own = await myPlaylists();
   // 收藏的歌单不在 /luna/me/playlist 里，要单独从签名接口取；签名不可用时
@@ -1649,7 +1658,7 @@ async function likedPlaylist() {
     list.find((item) => item && Number(item.type) === 1) ||
     list.find((item) => item && /喜欢/.test(String(item.title || "")));
   if (!found || !found.id) {
-    throw fail("unavailable", "没有找到“我喜欢的音乐”歌单，请先在汽水音乐里喜欢一首歌");
+    throw fail("unavailable", tr("Couldn't find the Liked Songs playlist. Like a song in Qishui Music first."));
   }
   return found;
 }
@@ -1681,7 +1690,7 @@ async function loadPlaylist(id) {
 export async function playlist({ id }) {
   const playlistID = asID(id);
   const loaded = await loadPlaylist(playlistID);
-  if (!loaded.raw) throw new Error("找不到这个歌单");
+  if (!loaded.raw) throw new Error(tr("Couldn't find this playlist"));
   const item = toPlaylist(loaded.raw);
   if (!item.id) item.id = playlistID;
   item.tracks = loaded.tracks;
@@ -1697,7 +1706,7 @@ export async function playlist({ id }) {
 // ---------- 我喜欢的音乐 ----------
 
 export async function liked({ offset }) {
-  if (!signedIn()) throw fail("signIn", "扫码登录汽水音乐后，可以同步“我喜欢的音乐”");
+  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to sync your Liked Songs"));
   const raw = await likedPlaylist();
   const start = pageOffset(offset);
   const data = await luna("/luna/playlist/detail", {
@@ -1761,13 +1770,13 @@ const COLLECTION_PATH = "/luna/pc/me/collection/media";
 
 function trackIDOf(value) {
   const text = value === undefined || value === null ? "" : String(value);
-  if (!/^[0-9]{1,32}$/.test(text)) throw fail("unavailable", "歌曲 ID 无效，无法收藏");
+  if (!/^[0-9]{1,32}$/.test(text)) throw fail("unavailable", tr("Invalid track ID, can't like the track"));
   return text;
 }
 
 export async function like({ id, on }) {
   const trackID = trackIDOf(id);
-  if (!signedIn()) throw fail("signIn", "登录汽水音乐后才能收藏歌曲");
+  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to like songs"));
   const media = [{ id: trackID, type: "track" }];
   const body = on ? { scene: "", media: media } : { media: media };
   await signedPC(on ? COLLECTION_PATH : COLLECTION_PATH + "/delete", body);
@@ -1888,8 +1897,8 @@ function playlistName(value) {
   const title = String(value === undefined || value === null ? "" : value)
     .replace(/\s+/g, " ")
     .trim();
-  if (!title) throw fail("unsupported", "歌单名称不能为空");
-  if (title.length > 60) throw fail("unsupported", "歌单名称最长 60 个字符");
+  if (!title) throw fail("unsupported", tr("Playlist name can't be empty"));
+  if (title.length > 60) throw fail("unsupported", tr("Playlist names are limited to 60 characters"));
   return title;
 }
 
@@ -1902,10 +1911,10 @@ function trackMediaOf(trackIds) {
   const media = [];
   for (const value of source) {
     const id = String(value === undefined || value === null ? "" : value);
-    if (!/^[0-9]{1,32}$/.test(id)) throw fail("unsupported", "歌曲 ID 不正确，无法修改歌单");
+    if (!/^[0-9]{1,32}$/.test(id)) throw fail("unsupported", tr("Invalid track ID, can't edit the playlist"));
     media.push({ id: id, type: "track" });
   }
-  if (!media.length) throw fail("unsupported", "没有选择要修改的歌曲");
+  if (!media.length) throw fail("unsupported", tr("No tracks selected"));
   return media;
 }
 
@@ -1913,7 +1922,7 @@ function trackMediaOf(trackIds) {
 // 加/删歌，其余（抖音收藏等）完全固定。
 async function ownPlaylistRaw(playlistID, allowLiked) {
   const me = profileID();
-  if (!me) throw fail("signIn", "扫码登录汽水音乐后才能修改歌单");
+  if (!me) throw fail("signIn", tr("Sign in to Qishui Music to edit playlists"));
   const list = await myPlaylists();
   for (const raw of list) {
     if (!raw || String(raw.id) !== playlistID) continue;
@@ -1922,16 +1931,16 @@ async function ownPlaylistRaw(playlistID, allowLiked) {
     const type = Number(raw.type);
     const ordinary = ORDINARY_PLAYLIST_TYPES.indexOf(type) >= 0;
     if (!ordinary && !(allowLiked && type === 1)) {
-      throw fail("unsupported", "这个歌单由汽水音乐固定管理，不能在 App 里修改");
+      throw fail("unsupported", tr("This playlist is managed by Qishui Music and can't be edited in the app"));
     }
     return raw;
   }
-  throw fail("unsupported", "只能修改自己创建的歌单");
+  throw fail("unsupported", tr("You can only edit playlists you created"));
 }
 
 function trackIndex(value) {
   const index = Number(value);
-  if (!Number.isSafeInteger(index) || index < 0) throw fail("unsupported", "歌曲位置不正确");
+  if (!Number.isSafeInteger(index) || index < 0) throw fail("unsupported", tr("Invalid track position"));
   return index;
 }
 
@@ -1948,7 +1957,7 @@ async function playlistRawOrder(playlistID) {
       const entity = item && item.entity ? item.entity : item;
       const track = entity && entity.track_wrapper ? entity.track_wrapper.track : entity && entity.track;
       if (!track || track.id === undefined || track.id === null) {
-        throw fail("unsupported", "这个歌单里有非歌曲内容，暂时不能在 App 里排序");
+        throw fail("unsupported", tr("This playlist contains non-track items and can't be reordered in the app yet"));
       }
       ids.push(String(track.id));
     }
@@ -1957,19 +1966,19 @@ async function playlistRawOrder(playlistID) {
     if (!Number.isSafeInteger(next) || next <= cursor) break;
     cursor = next;
   }
-  if (ids.length >= PLAYLIST_LIMIT) throw fail("unsupported", "歌单太长，暂时不能在 App 里排序");
+  if (ids.length >= PLAYLIST_LIMIT) throw fail("unsupported", tr("This playlist is too long to reorder in the app"));
   return ids;
 }
 
 export async function createPlaylist({ name }) {
-  requireSignedIn("扫码登录汽水音乐后才能新建歌单");
+  requireSignedIn(tr("Sign in to Qishui Music to create playlists"));
   const data = await signedPC(OWN_PLAYLIST_PATH, {
     name: playlistName(name),
     is_private: false,
     media: [],
   });
   const raw = data && data.playlist;
-  if (!raw || raw.id === undefined || raw.id === null) throw new Error("汽水音乐没有返回新建的歌单");
+  if (!raw || raw.id === undefined || raw.id === null) throw new Error(tr("Qishui didn't return the new playlist"));
   const item = toPlaylist(raw, { profileID: profileID() });
   item.mine = true;
   item.fixed = false;
@@ -1979,7 +1988,7 @@ export async function createPlaylist({ name }) {
 
 export async function renamePlaylist({ id, name }) {
   const playlistID = asID(id);
-  requireSignedIn("扫码登录汽水音乐后才能重命名歌单");
+  requireSignedIn(tr("Sign in to Qishui Music to rename playlists"));
   const title = playlistName(name);
   await ownPlaylistRaw(playlistID, false);
   await signedPC(OWN_PLAYLIST_PATH + "/update", { playlist_id: playlistID, name: title });
@@ -1987,14 +1996,14 @@ export async function renamePlaylist({ id, name }) {
 
 export async function deletePlaylist({ id }) {
   const playlistID = asID(id);
-  requireSignedIn("扫码登录汽水音乐后才能删除歌单");
+  requireSignedIn(tr("Sign in to Qishui Music to delete playlists"));
   await ownPlaylistRaw(playlistID, false);
   await signedPC(OWN_PLAYLIST_PATH + "/delete", { playlist_ids: [playlistID] });
 }
 
 async function changePlaylist(id, trackIds, on) {
   const playlistID = asID(id);
-  requireSignedIn("扫码登录汽水音乐后才能修改歌单");
+  requireSignedIn(tr("Sign in to Qishui Music to edit playlists"));
   const media = trackMediaOf(trackIds);
   const raw = await ownPlaylistRaw(playlistID, true);
   if (Number(raw.type) === 1) {
@@ -2019,7 +2028,7 @@ export async function removeFromPlaylist({ id, trackIds }) {
 
 export async function movePlaylistTrack({ id, from, to }) {
   const playlistID = asID(id);
-  requireSignedIn("扫码登录汽水音乐后才能调整歌单顺序");
+  requireSignedIn(tr("Sign in to Qishui Music to reorder playlist tracks"));
   const start = trackIndex(from);
   const target = trackIndex(to);
   await ownPlaylistRaw(playlistID, false);
@@ -2038,7 +2047,7 @@ export async function movePlaylistTrack({ id, from, to }) {
 
 export async function savePlaylist({ id, on }) {
   const playlistID = asID(id);
-  requireSignedIn("扫码登录汽水音乐后才能收藏歌单");
+  requireSignedIn(tr("Sign in to Qishui Music to save playlists"));
   await signedPC(COLLECTION_ROOT + "/playlist" + (on ? "" : "/delete"), {
     playlist_ids: [playlistID],
   });
@@ -2047,7 +2056,7 @@ export async function savePlaylist({ id, on }) {
 
 export async function saveAlbum({ id, on }) {
   const albumID = asID(id);
-  requireSignedIn("扫码登录汽水音乐后才能收藏专辑");
+  requireSignedIn(tr("Sign in to Qishui Music to save albums"));
   await signedPC(COLLECTION_ROOT + "/album" + (on ? "" : "/delete"), {
     album_ids: [albumID],
   });
@@ -2056,7 +2065,7 @@ export async function saveAlbum({ id, on }) {
 
 export async function followArtist({ id, on }) {
   const artistID = asID(id);
-  requireSignedIn("扫码登录汽水音乐后才能关注歌手");
+  requireSignedIn(tr("Sign in to Qishui Music to follow artists"));
   await signedPC(COLLECTION_ROOT + "/artist" + (on ? "" : "/delete"), {
     artist_ids: [artistID],
   });
@@ -2064,7 +2073,7 @@ export async function followArtist({ id, on }) {
 }
 
 export async function savedAlbums({ offset }) {
-  requireSignedIn("扫码登录汽水音乐后，这里会显示你收藏的专辑");
+  requireSignedIn(tr("Sign in to Qishui Music to see your saved albums here"));
   const start = pageOffset(offset);
   const rows = await savedAlbumRows();
   const albums = rows
@@ -2270,7 +2279,7 @@ function commentOf(raw) {
     (brief && typeof brief.name === "string" ? brief.name.trim() : "") ||
     (typeof user.nickname === "string" ? user.nickname.trim() : "") ||
     (typeof user.public_name === "string" ? user.public_name.trim() : "") ||
-    "汽水音乐用户";
+    tr("Qishui user");
   const avatar =
     commentAvatar(brief && (brief.url_avatar || brief.thumb_avatar_url || brief.medium_avatar_url)) ||
     commentAvatar(user.thumb_avatar_url || user.medium_avatar_url || user.url_avatar);
@@ -2351,7 +2360,7 @@ export async function comments({ trackId, offset }) {
 export async function likeComment({ trackId, commentId, on }) {
   const id = asID(trackId);
   const comment = asID(commentId);
-  if (!signedIn()) throw fail("signIn", "登录汽水音乐后才能给评论点赞");
+  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to like comments"));
   const liked = on === true;
   await signedPC("/luna/pc/comments/action", {
     comment_id: comment,
@@ -2374,11 +2383,11 @@ export async function likeComment({ trackId, commentId, on }) {
 
 export async function postComment({ trackId, text }) {
   const id = asID(trackId);
-  if (!signedIn()) throw fail("signIn", "登录汽水音乐后才能发表评论");
+  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to post comments"));
   const value = typeof text === "string" ? text.trim() : "";
-  if (!value) throw new Error("评论内容不能为空");
-  if (Array.from(value).length > 280) throw new Error("评论最多 280 个字符");
-  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw new Error("评论内容包含不支持的字符");
+  if (!value) throw new Error(tr("Comment can't be empty"));
+  if (Array.from(value).length > 280) throw new Error(tr("Comments are limited to 280 characters"));
+  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw new Error(tr("Comment contains unsupported characters"));
   const data = await signedPC("/luna/pc/comments/create", {
     group_id: id,
     group_type: 0,
@@ -2391,10 +2400,10 @@ export async function postComment({ trackId, text }) {
     text_extra: [],
   });
   const created = data.created_comment === undefined || data.created_comment === null ? "" : String(data.created_comment);
-  if (!created || /^0+$/.test(created)) throw new Error("汽水音乐没有返回新评论的编号");
+  if (!created || /^0+$/.test(created)) throw new Error(tr("Qishui didn't return the new comment ID"));
   commentsCache.delete(id);
   const profile = currentSession().profile || {};
-  const comment = { id: created, author: profile.name || "我", text: value, time: Date.now(), likes: 0, liked: false };
+  const comment = { id: created, author: profile.name || tr("Me"), text: value, time: Date.now(), likes: 0, liked: false };
   if (profile.imageUrl) comment.avatarUrl = profile.imageUrl;
   return comment;
 }
@@ -2764,7 +2773,7 @@ function b64encode(bytes) {
 // 首字符 base36 是尾长 -> 剩下的十六进制是 16 字节 AES-128 密钥。
 function playbackKey(spadeA) {
   const source = b64decode(spadeA);
-  if (source.length < 4) throw new Error("播放密钥为空");
+  if (source.length < 4) throw new Error(tr("Empty playback key"));
   const padding = (source[0] ^ source[1] ^ source[2]) - 48;
   const coded = source.subarray(1, source.length - padding);
   const plain = new Uint8Array(coded.length);
@@ -2785,11 +2794,11 @@ function playbackKey(spadeA) {
 
 function decryptM4A(data, spadeA) {
   const key = playbackKey(spadeA);
-  if (key.length !== 16) throw new Error("播放密钥长度不对（" + key.length + " 字节）");
+  if (key.length !== 16) throw new Error(tr("Invalid playback key length") + " (" + key.length + " bytes)");
   const rk = expandKey(key);
   const top = childBoxes(data, 0, data.length);
   const moov = findBox(top, "moov");
-  if (!moov) throw new Error("音频文件里没有 moov");
+  if (!moov) throw new Error(tr("No moov box in the audio file"));
   let target = null;
   const traks = childBoxes(data, moov.data, moov.end).filter((box) => box.type === "trak");
   for (const trak of traks) {
@@ -2806,18 +2815,18 @@ function decryptM4A(data, spadeA) {
     }
     if (!target && findBox(boxes, "stsz")) target = { boxes };
   }
-  if (!target) throw new Error("音频文件里没有可解密的音轨");
+  if (!target) throw new Error(tr("No decryptable audio track in the file"));
   const stsd = findBox(target.boxes, "stsd");
   const stsz = findBox(target.boxes, "stsz");
   const stsc = findBox(target.boxes, "stsc");
   const stco = findBox(target.boxes, "stco");
   const senc = findBox(target.boxes, "senc");
-  if (!stsd || !stsz || !stsc || !stco) throw new Error("音频文件缺少样本表");
-  if (!senc) throw new Error("音频文件没有加密样本信息");
+  if (!stsd || !stsz || !stsc || !stco) throw new Error(tr("Audio file is missing its sample table"));
+  if (!senc) throw new Error(tr("Audio file has no encrypted sample information"));
   const sampleCount = readU32(data, senc.data + 4);
-  if (!sampleCount) throw new Error("加密样本为空");
+  if (!sampleCount) throw new Error(tr("Encrypted samples are empty"));
   const layout = sampleLayout(data, stsz, stsc, stco);
-  if (layout.count !== sampleCount) throw new Error("样本数量不一致");
+  if (layout.count !== sampleCount) throw new Error(tr("Sample counts don't match"));
   const ivSize = Math.max(8, Math.min(16, Math.floor((senc.end - senc.data - 8) / sampleCount)));
   const iv = new Uint8Array(8);
   for (let i = 0; i < sampleCount; i++) {
@@ -2883,11 +2892,11 @@ async function fetchBytes(url, timeoutMs) {
       headers: { "User-Agent": APP_UA },
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error("汽水音乐下载音频失败（HTTP " + response.status + "）");
+    if (!response.ok) throw new Error(tr("Qishui audio download failed (HTTP ") + response.status + ")");
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
   } catch (error) {
-    if (controller.signal.aborted) throw new Error("汽水音乐下载音频超时，请稍后重试");
+    if (controller.signal.aborted) throw new Error(tr("Audio download timed out. Please try again later."));
     throw error;
   } finally {
     clearTimeout(timer);
@@ -2924,7 +2933,7 @@ function cachedStream(trackID, requested) {
 }
 
 async function deliverEncrypted(picked, trackID, requested) {
-  if (!onMac()) throw fail("setup", PLATFORM_MESSAGE);
+  if (!onMac()) throw fail("setup", platformMessage());
   const meta = picked.video_meta || {};
   const encrypt = picked.encrypt_info || {};
   const quality = String(meta.quality || "medium");
@@ -2943,13 +2952,13 @@ async function deliverEncrypted(picked, trackID, requested) {
     if (/allowed/i.test(message)) {
       throw fail(
         "setup",
-        "播放完整歌曲需要允许插件启动 base64 命令：设置 → 汽水音乐 → Allow Programs（允许启动程序），然后重试"
+        tr("Allow this plugin to launch base64 to play full songs: Settings → Qishui Music → Allow Programs, then retry")
       );
     }
     if (/process permission/i.test(message)) {
-      throw fail("setup", "插件没有启动 base64 命令的权限，请重新安装最新版本的插件");
+      throw fail("setup", tr("This plugin isn't allowed to launch base64. Please reinstall the latest version."));
     }
-    throw fail("unavailable", "启动解码程序失败：" + message);
+    throw fail("unavailable", tr("Failed to start the decoder: ") + message);
   }
   try {
     const encrypted = await fetchBytes(picked.main_url, 20000);
@@ -2964,7 +2973,7 @@ async function deliverEncrypted(picked, trackID, requested) {
     const code = await proc.wait();
     if (code !== 0) {
       const why = String(proc.errorOutput() || "").trim();
-      throw fail("unavailable", "音频写入失败（" + (why || "base64 退出码 " + code + "）"));
+      throw fail("unavailable", tr("Failed to write audio") + " (" + (why || tr("base64 exit code") + " " + code) + ")");
     }
     const entry = {
       at: Date.now(),
@@ -3065,21 +3074,21 @@ export async function stream({ id, quality }) {
   const data = await seoTrack(trackID);
   const info = playbackOf(data);
   if (!info.videos.length) {
-    throw finalError(fail("unavailable", "汽水音乐没有返回这首歌的播放地址，可能没有版权或需要会员"));
+    throw finalError(fail("unavailable", tr("Qishui didn't return a playback URL for this song; it may be unavailable or require membership")));
   }
   const picked = pickVideo(info.videos, order);
-  if (!picked) throw finalError(fail("unavailable", "汽水音乐没有返回这首歌可用的音质"));
+  if (!picked) throw finalError(fail("unavailable", tr("Qishui didn't return a playable quality for this song")));
   const meta = picked.video_meta || {};
   const url = String(picked.main_url);
-  if (!allowedAudioHost(url)) throw fail("unavailable", "汽水音乐返回了不受支持的播放地址");
+  if (!allowedAudioHost(url)) throw fail("unavailable", tr("Qishui returned an unsupported playback URL"));
   if (servedPreview(info.track, info.model)) {
     if (fullError && fullError.code === "unavailable") throw fullError;
-    if (!active) throw fail("signIn", "登录汽水音乐后才能播放完整歌曲");
+    if (!active) throw fail("signIn", tr("Sign in to Qishui Music to play full songs"));
     if (!onMac()) {
-      throw fail("unavailable", "这首歌在汽水音乐只提供试听片段（会员专享）；Windows/Linux 版暂不支持播放完整版");
+      throw fail("unavailable", tr("This song is preview-only (membership), and full playback isn't supported on Windows/Linux yet"));
     }
     throw finalError(
-      fail("unavailable", "这首歌在汽水音乐只提供试听片段（会员或购买专享），暂时无法完整播放")
+      fail("unavailable", tr("This song is preview-only (membership or purchase) and can't be played in full"))
     );
   }
   return streamResult(url, meta.vtype ? String(meta.vtype) : "m4a", meta, meta.quality);

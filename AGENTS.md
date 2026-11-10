@@ -48,7 +48,11 @@
 - `home()` 与 `browse({page:"discover"})` 不得复用同一份推荐数据：首页放听歌模式（`stations()`，前 9 个为私人漫游+常用模式、其余为探索电台）+ `/luna/discover` 的推荐歌单，不要再放榜单/最近播放（侧栏有独立入口）；发现页用 `/luna/pc/discover/mix` 的编辑精选 + `/luna/pc/feed/song-tab` 的猜你喜欢，失败才回退旧推荐歌单。听歌模式已并入首页，plugin.json 不再注册 `stations` 导航。
 - 音质映射固定为：MyGo `standard`→官方 medium、`high`→higher、`lossless`→lossless，
   缺档按 `QUALITY_ORDER` 降级；播放缓存条目必须带 `request` 字段，不同音质不能互相命中。
-- 插件 id 是 `qishui`，展示名「汽水音乐」；数据目录为 `plugin-data/qishui`。
+- 插件 id 是 `qishui`，`plugin.json` 的 `name` 为英文 key `Qishui Music`（中文 locale 译作「汽水音乐」）；数据目录为 `plugin-data/qishui`。
+- 界面文案必须 i18n：所有用户可见字符串写成 `tr("English key")`，英文是 key，中文放在
+  `locales/zh-CN.json`。模块顶层不能调用 `host`，所以不要用 `tr()` 初始化顶层常量；在导出函数里
+  再翻译。`plugin.json` 的 `name` 与 `navigation[].title` 用英文 key，宿主会读同一个 locale 文件翻译。
+  新增/修改文案后要同步 `locales/zh-CN.json`，否则中文界面会回退成英文。
 - docs/API.md 记录真实请求与响应形状（脱敏）；docs/RUNTIME.md 记录宿主契约；
   docs/PLAYBACK.md 记录完整播放链路与已知限制。
 - 修改播放链路后至少跑：`node --experimental-vm-modules tools/harness/run.mjs --plugin . --routes tools/harness/fixtures/routes.json`

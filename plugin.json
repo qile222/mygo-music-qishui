@@ -1,7 +1,7 @@
 {
   "id": "qishui",
-  "name": "汽水音乐",
-  "version": "0.6.3",
+  "name": "Qishui Music",
+  "version": "0.6.4",
   "minAppVersion": "0.1.22",
   "main": "index.js",
   "playback": "stream",
@@ -23,32 +23,32 @@
   "navigation": [
     {
       "builtin": "home",
-      "title": "首页",
+      "title": "Home",
       "icon": "home"
     },
     {
       "page": "discover",
-      "title": "发现",
+      "title": "Discover",
       "icon": "star"
     },
     {
       "page": "charts",
-      "title": "榜单",
+      "title": "Charts",
       "icon": "chart"
     },
     {
       "builtin": "liked",
-      "title": "我喜欢",
+      "title": "Liked Songs",
       "icon": "heart"
     },
     {
       "builtin": "savedAlbums",
-      "title": "收藏专辑",
+      "title": "Saved Albums",
       "icon": "album"
     },
     {
       "page": "history",
-      "title": "最近播放",
+      "title": "Recently Played",
       "icon": "calendar"
     }
   ]

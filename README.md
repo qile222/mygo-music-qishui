@@ -36,6 +36,8 @@
 - 完整播放：登录后经官方 PC 播放接口（带官方签名）取音频，插件内纯 JS 解密后交给播放器（无需 ffmpeg）
 - 无损音质：支持官方「无损」FLAC-in-MP4（在 MyGo 设置里选 Lossless 即可）
 - 播放缓存：最近 8 首解密后的整曲；重复播放、以及连续播放时应用自动预取下一首，基本秒开
+- 界面语言跟随 MyGo 设置（English / 简体中文）：所有文案走 `host.t()`，中文在 `locales/zh-CN.json`，
+  英文 key 直接内置；插件名和侧栏标题也由宿主按同样的语言文件翻译
 
 评论说明：读取评论匿名即可（登录后优先走签名请求）；当前服务端不返回「我是否点过赞」，
 所以刷新后评论红心会回到未点亮状态，点赞数仍以服务端为准。发表评论需要登录，只在应用内
@@ -79,7 +81,7 @@ high → higher → highest → hi_res → medium；standard → medium → high
 
 ## 安装
 
-1. 把本文件夹（含 `plugin.json` 与 `index.js`）放进：
+1. 把本文件夹（含 `plugin.json`、`index.js` 与 `locales/`）放进：
    `~/Library/Application Support/MyGo Music/plugins/qishui`（或 MyGo Music → Settings → Plugins → + 选择文件夹/zip）。
 2. 重启 MyGo Music，在 Settings → General 的 source 里选择「汽水音乐」。
 3. 首次完整播放时，播放器会提示需要「允许启动程序」：Settings → 汽水音乐 →
@@ -128,6 +130,7 @@ MyGo 的插件数据目录（`plugin-data/qishui/storage.json`），不会写进
 ## 目录
 
 - `index.js` / `plugin.json`：插件本体
+- `locales/`：界面文案翻译（`zh-CN.json`；英文是 key，缺失时原样显示）
 - `docs/`：接口、运行时与播放链路文档
 - `fixtures/`：脱敏的接口响应样本
 - `tools/`：只读探针与无头测试脚手架
