@@ -1,6 +1,6 @@
 {
   "source": "https://api.qishui.com/luna/pc/feed/mode (official scene-mode url_info icons)",
-  "style": "Official Qishui glyph recoloured white and centered on a short neutral dark pill for light/dark MyGo cards; no redrawn or substituted artwork.",
+  "style": "Official Qishui glyph recoloured white and centered on a per-mode iTunes-style color-gradient tile; no redrawn or substituted artwork.",
   "size": 400,
   "modes": {
     "9": "抖音漫游",

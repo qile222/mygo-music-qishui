@@ -44,12 +44,12 @@
   评论正文、作者信息或头像 URL。
 - 官方签名进程必须常驻复用（stdin/stdout 逐行协议），不得每次请求重新 spawn；App 退出时
   stdin 关闭、进程随之结束。`played` 只做「最近播放」上报，失败不影响播放。
-- 听歌模式/私人漫游（`stations` / `stationNext`）只用 PC 侧公开接口（`/luna/pc/feed/mode`、`/luna/pc/discover`、`/luna/pc/feed/song-tab`、`/luna/pc/feed/radio/tracks`），不要要求签名或 spawn，Windows/Linux 也应能取到元数据；`stationNext` 必须按站维护 `count/played/seen/cursor`，对返回曲目去重、`played` 只留最后 30 条，`has_more:false` 或 `next_cursor` 缺失时置 done。
+- 听歌模式/私人漫游（`stations` / `stationNext`）只用 PC 侧公开接口（`/luna/pc/feed/mode`、`/luna/pc/discover`、`/luna/pc/feed/song-tab`、`/luna/pc/feed/radio/tracks`），不要要求签名或 spawn，Windows/Linux 也应能取到元数据；`stationNext` 必须按站维护 `count/played/seen/cursor`，对返回曲目去重、`played` 只留最后 30 条，`has_more:false` 或 `next_cursor` 缺失时置 done。探索电台必须区分歌手电台和曲风电台：`style.type===6` 是歌手电台（`flow_type=1`），否则是曲风/类型电台（`flow_type=2`）；`/luna/pc/feed/radio/tracks` 必须带 `flow_type`，否则服务端返回通用推荐流，会出现点 Jessie J 播别人歌的问题。
 - `home()` 与 `browse({page:"discover"})` 不得复用同一份推荐数据：首页放听歌模式（`stations()`，前 9 个为私人漫游+常用模式、其余为探索电台）+ `/luna/discover` 的推荐歌单，不要再放榜单/最近播放（侧栏有独立入口）；发现页用 `/luna/pc/discover/mix` 的编辑精选 + `/luna/pc/feed/song-tab` 的猜你喜欢，失败才回退旧推荐歌单。听歌模式已并入首页，plugin.json 不再注册 `stations` 导航。
 - 音质映射固定为：MyGo `standard`→官方 medium、`high`→higher、`lossless`→lossless，
   缺档按 `QUALITY_ORDER` 降级；播放缓存条目必须带 `request` 字段，不同音质不能互相命中。
 - 插件 id 是 `qishui`，`plugin.json` 的 `name` 为英文 key `Qishui Music`（中文 locale 译作「汽水音乐」）；数据目录为 `plugin-data/qishui`。
-- 首页/全部听歌模式卡片的图片只用随插件分发的 `assets/modes/<sceneID>.webp`（由官方 `/luna/pc/feed/mode` 图标生成）：不能拿榜单/歌单/电台封面冒充模式封面（会出现「粤语」显示林俊杰这类错配），也不能重画成别的图形。缺失时先回退官方 `imageUrl`，再缺就留空让宿主占位，不要随机找图。新增模式后运行 `tools/build-mode-assets.py` 重建胶囊图。默认模式页只放 9 个常用模式 + 官方照片电台；45 个场景模式放在 `all-modes` 页。
+- 首页/全部听歌模式卡片的图片只用随插件分发的 `assets/modes/<sceneID>.webp`（由官方 `/luna/pc/feed/mode` 图标生成）：不能拿榜单/歌单/电台封面冒充模式封面（会出现「粤语」显示林俊杰这类错配），也不能重画成别的图形。缺失时先回退官方 `imageUrl`，再缺就留空让宿主占位，不要随机找图。新增模式后运行 `tools/build-mode-assets.py` 重建渐变方卡图。默认模式页只放 9 个常用模式 + 官方照片电台；45 个场景模式放在 `all-modes` 页。
 - 界面文案必须 i18n：所有用户可见字符串写成 `tr("English key")`，英文是 key，中文放在
   `locales/zh-CN.json`。模块顶层不能调用 `host`，所以不要用 `tr()` 初始化顶层常量；在导出函数里
   再翻译。`plugin.json` 的 `name` 与 `navigation[].title` 用英文 key，宿主会读同一个 locale 文件翻译。

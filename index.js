@@ -1005,9 +1005,10 @@ const COMMON_MODE_DEFS = [
 
 // 听歌模式图片：使用汽水 /luna/pc/feed/mode 返回的官方 url_info 图标，按场景 id
 // 预生成 assets/modes/<sceneID>.webp。官方图标本身是透明底白色线稿，MyGo 的浅色卡片
-// 上几乎看不见，所以只做展示层处理：保留官方图形，改成白色并放在矮的横向深色胶囊里；
-// 不重画、不替换成别的图标。私人漫游和熟悉/新鲜模式官方接口没有返回图标，保留宿主
-// 自带的电台图标作为占位。
+// 上几乎看不见，所以只做展示层处理：保留官方图形，改成白色并放在每个模式不同颜色的
+// 渐变方卡上（iTunes 风格）。方卡底色只用于展示、由插件生成，不是汽水素材；不重画、
+// 不替换成别的图标。私人漫游和熟悉/新鲜模式官方接口没有返回图标，保留宿主自带的电台
+// 图标作为占位。
 function modeImageURL(sceneID) {
   const id = String(sceneID === undefined || sceneID === null ? "" : sceneID).trim();
   if (!/^\d{1,20}$/.test(id)) return "";
@@ -1066,8 +1067,11 @@ function radioStationsOf(data) {
         const id = String(resource.resource_id || inner.inner_block_id || "");
         if (!id || seen[id]) continue;
         seen[id] = true;
+        // style.type 5 是曲风/类型电台，6 是歌手电台。官方播放接口必须同时带
+        // flow_type，否则服务端会按「推荐流」随便给歌；歌手电台会播成别人的歌。
+        const flowType = Number(style.type) === 6 ? 1 : 2;
         rows.push({
-          id: "radio:" + id,
+          id: "radio:" + flowType + ":" + id,
           name: style.title || inner.title || tr("Radio"),
           description: style.desc || tr("Picked for your taste"),
           imageUrl: coverURL((style.cover_url_list || [])[0] || style.cover_url, 400),
@@ -1097,7 +1101,7 @@ async function discoveryRadioStations(force) {
 
 // 官方「听歌模式」页：私人漫游 + 8 个常用模式 + 探索更多新模式（按账号推荐的电台）。
 // 45 个模式接口只给透明底白色图标，随机拿榜单/歌单封面又会让语义错配；这里统一用
-// 从官方 url_info 生成的横向胶囊，首页和全部模式页复用同一份卡片，图形仍是官方的。
+// 从官方 url_info 生成的彩色渐变方卡，首页和全部模式页复用同一份卡片，图形仍是官方的。
 function sceneImage(modesByID, sceneID) {
   const id = String(sceneID === undefined || sceneID === null ? "" : sceneID).trim();
   if (!id) return "";
@@ -1134,7 +1138,7 @@ async function listeningModeCards() {
       id: def.id,
       name: tr(def.name),
       description: tr(def.description),
-      // 熟悉/新鲜官方没有图标，留空让宿主显示占位图；场景模式用官方图标生成的本地胶囊。
+      // 熟悉/新鲜官方没有图标，留空让宿主显示占位图；场景模式用官方图标生成的本地彩色方卡。
       imageUrl: sceneID ? sceneImage(modesByID, sceneID) : "",
     });
   }
@@ -1236,11 +1240,14 @@ async function stationNextFeed(id) {
   return rememberStationTracks(state, tracks);
 }
 
-async function stationNextRadio(radioID) {
-  const id = "radio:" + radioID;
+async function stationNextRadio(radioID, flowType) {
+  const flow = Number(flowType) === 1 ? 1 : 2;
+  const id = "radio:" + flow + ":" + radioID;
   const state = stationState(id);
   if (state.done) return [];
-  const body = { radio_id: radioID, count: 6 };
+  // flow_type 必填：1 歌手电台，2 曲风/类型电台。缺失时服务端返回的是通用推荐流，
+  // 会出现点 Jessie J 却播别人歌的问题。
+  const body = { radio_id: radioID, count: 6, flow_type: flow };
   if (state.cursor) body.cursor = state.cursor;
   const data = await pc("/luna/pc/feed/radio/tracks", { body, timeoutMs: 20000 });
   if (data.next_cursor !== undefined && data.next_cursor !== null && String(data.next_cursor) !== "") {
@@ -1259,9 +1266,18 @@ export async function stationNext({ id }) {
   const key = String(id === undefined || id === null ? "" : id).trim();
   if (!key) throw fail("unsupported", tr("No such radio station"));
   if (key.indexOf("radio:") === 0) {
-    const radioID = key.slice("radio:".length);
+    const parts = key.split(":");
+    let radioID = "";
+    let flowType = 2;
+    if (parts.length >= 3 && (parts[1] === "1" || parts[1] === "2")) {
+      flowType = Number(parts[1]);
+      radioID = parts.slice(2).join(":");
+    } else {
+      // 兼容旧卡片 id（只有 radio:<id>），按曲风电台处理。
+      radioID = key.slice("radio:".length);
+    }
     if (!/^\d{1,20}$/.test(radioID)) throw fail("unsupported", tr("No such radio station"));
-    return stationNextRadio(radioID);
+    return stationNextRadio(radioID, flowType);
   }
   return stationNextFeed(key);
 }

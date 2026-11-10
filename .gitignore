@@ -3,3 +3,5 @@ node_modules/
 *.zip
 tmp/
 secrets/
+__pycache__/
+*.pyc

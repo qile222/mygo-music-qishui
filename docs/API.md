@@ -524,9 +524,10 @@ APP host 等价：POST {APP}/luna/playlist/detail body {playlist_id, cursor, cou
     POST https://api.qishui.com/luna/pc/feed/radio/tracks
     Content-Type: application/json; charset=utf-8
 
-    {"radio_id":"7408841207004184603","count":6,"cursor":""}
+    {"radio_id":"7408841207004184603","count":6,"cursor":"","flow_type":2}
 
 - 匿名可用（APP host POST {APP}/luna/feed/radio/tracks 也可以），200，35–38 KB。
+- **必须带 flow_type**：style.type===6 是歌手电台（flow_type=1），style.type===5 是曲风/类型电台（flow_type=2）。不带 flow_type 时服务端按通用推荐流返回，会出现点 Jessie J 却播别人歌、点谭晶播无关内容的问题（2026-11-11 实测）。
 - {status_info, has_more:true, items[{id,type:"track",entity:{track_wrapper:{track}}}]}；**无 next_cursor**。
 - ⚠️ cursor 语义不稳定：连续请求可能返回相同/重叠曲目；偶发 items:[] 但 has_more:true。
 - 实现建议：把 items 按 track id 去重追加；空 items 视为「本轮为空」→ 重试 1 次或结束本轮；用 has_more 决定是否继续「换一批」。不要依赖 cursor 去重。
@@ -877,7 +878,7 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | 19 | 艺人详情 | GET | {PC}/luna/pc/artists/{artist_id} | — | 否 | 否 | ✅ |
 | 20 | 艺人曲目 | GET | {PC}/luna/pc/artists/{id}/tracks | cursor | 否 | 否 | ✅ |
 | 21 | 艺人专辑 | GET | {PC}/luna/pc/artists/{id}/albums | cursor | 否 | 否 | ⚠️ |
-| 22 | 电台曲目 | POST | {PC}/luna/pc/feed/radio/tracks | radio_id,count,cursor | 否 | 否 | ⚠️ |
+| 22 | 电台曲目 | POST | {PC}/luna/pc/feed/radio/tracks | radio_id,count,cursor,flow_type | 否 | 否 | ⚠️ |
 | 23 | 评论 | GET | {APP}/luna/comments 或 {PC}/luna/pc/comments | group_id,group_type=0,cursor,count,image_strategy=2 | 可选 | 匿名即可（PC 签名后仍可读） | ✅ |
 | 24 | 歌词 | 同 11/12 | lyric.content | — | 可选 | — | ✅ |
 | 25 | 媒体加密流（不可播） | POST | {APP}/luna/media-player 或 {PC}/luna/pc/track_v2 | — | — | — | ⚠️ 仅元数据 |
@@ -988,7 +989,7 @@ type 为准。
 | 44 | POST | {PC}/luna/pc/feed/mode | `{}` | `feed_mode_block[0].feed_mode[]`：`text`、`entity.feed_scene_mode.scene_mode_id`、`url_info`（封面模板）；常用 scene: 3/5/6/9/33/34 |
 | 45 | POST | {PC}/luna/pc/discover | `{"first_request":true,"pc_new_discover_request":true}` | `blocks[].inner_block[].resources[]`：`type="radio"` 用 `resource_id` 作电台 ID，`style.title/desc/cover_url_list` 展示；`type="playlist"` 用 `entity.playlist` |
 | 46 | POST | {PC}/luna/pc/discover/mix | `{}` | `inner_block[]`（`discover_playlist`），资源在 `resource.entity.playlist`，封面在 `style.cover_url` 或 playlist |
-| 47 | POST | {PC}/luna/pc/feed/radio/tracks | `{"radio_id":"<id>","count":6}`，翻页可带 `cursor` | `items[].entity.track_wrapper.track`、`has_more`、`next_cursor` |
+| 47 | POST | {PC}/luna/pc/feed/radio/tracks | `{"radio_id":"<id>","count":6,"flow_type":1|2}`，翻页可带 `cursor` | `items[].entity.track_wrapper.track`、`has_more`、`next_cursor`；`style.type===6`→`flow_type=1`，否则 `flow_type=2`，不传会得到无关推荐流 |
 | 48 | POST | {PC}/luna/pc/feed/song-tab | `{"played_media":[{"type":"track","media_id":"<id>","duration":秒,"played_mills":-1}],"is_first_request":true,"is_did_first_request":false,"feed_counts":{"mix_session_count":1},"feed_preference":{"preference_mode":"familiar"}}` | `items[]` 6 首、`has_more`；`cursor` 是已获取条数，页间会重叠，必须去重 |
 
 要点：
