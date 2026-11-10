@@ -1318,6 +1318,30 @@ async function discoverMixPlaylists(force) {
   return rows;
 }
 
+// 首页「推荐歌单」只放 APP 发现页的前 10 张；See All 页把 APP 发现页和 PC 编辑精选
+// 合并去重，得到更完整的推荐列表。两个接口都有缓存，重复打开不会重复打网络。
+async function recommendedPlaylists(force) {
+  const [data, mix] = await Promise.all([
+    discoverData(force).catch(() => null),
+    discoverMixPlaylists(force).catch(() => []),
+  ]);
+  const block = ((data && data.blocks) || []).find(
+    (item) => item && item.type === "discover_feed_playlist"
+  );
+  const rows = [];
+  const seen = {};
+  const add = (list) => {
+    for (const item of list || []) {
+      if (!item || !item.id || seen[item.id]) continue;
+      seen[item.id] = true;
+      rows.push(item);
+    }
+  };
+  add(block ? discoverPlaylists(block) : []);
+  add(mix);
+  return rows;
+}
+
 async function songTabPage(cursor) {
   const data = await pc("/luna/pc/feed/song-tab", {
     body: { cursor: String(cursor || ""), count: 20 },
@@ -1411,13 +1435,20 @@ export async function home() {
       title: tr("Explore Radio"),
       subtitle: tr("More scenes and styles"),
       stations: exploreStations,
+      morePage: "radio",
     });
   }
   const playlistBlock = (data.blocks || []).find(
     (item) => item && item.type === "discover_feed_playlist"
   );
   const playlists = playlistBlock ? discoverPlaylists(playlistBlock) : [];
-  if (playlists.length) sections.push({ title: tr("Recommended Playlists"), playlists: playlists.slice(0, 20) });
+  if (playlists.length) {
+    sections.push({
+      title: tr("Recommended Playlists"),
+      playlists: playlists.slice(0, 20),
+      morePage: "playlists",
+    });
+  }
   // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
   return { title: tr("Qishui Music"), sections };
 }
@@ -1445,6 +1476,7 @@ export async function browse({ page }) {
         title: tr("Explore More Modes"),
         subtitle: tr("Recommended by Qishui Music"),
         stations: radios.slice(0, 15),
+        morePage: "radio",
       });
     }
     return {
@@ -1467,6 +1499,34 @@ export async function browse({ page }) {
       sections,
     };
   }
+  if (name === "radio") {
+    const radios = await discoveryRadioStations();
+    return {
+      title: tr("Explore Radio"),
+      subtitle: tr("More scenes and styles"),
+      sections: [
+        {
+          title: tr("Radio"),
+          stations: radios,
+          empty: tr("No radio stations right now"),
+        },
+      ],
+    };
+  }
+  if (name === "playlists") {
+    const playlists = await recommendedPlaylists();
+    return {
+      title: tr("Recommended Playlists"),
+      subtitle: tr("Recommended by Qishui Music"),
+      sections: [
+        {
+          title: tr("Playlists"),
+          playlists,
+          empty: tr("No recommendations right now"),
+        },
+      ],
+    };
+  }
   if (name === "daily") {
     const tracks = await dailyTracks();
     return {
@@ -1479,7 +1539,9 @@ export async function browse({ page }) {
     const [playlists, tracks] = await Promise.all([discoverMixPlaylists(), songTabTracks()]);
     if (playlists.length || tracks.length) {
       const sections = [];
-      if (playlists.length) sections.push({ title: tr("Editor's Picks"), playlists });
+      if (playlists.length) {
+        sections.push({ title: tr("Editor's Picks"), playlists, morePage: "playlists" });
+      }
       if (tracks.length) sections.push({ title: tr("For You"), tracks, morePage: "daily" });
       return {
         title: tr("Discover"),
@@ -1494,7 +1556,12 @@ export async function browse({ page }) {
     const fallback = block ? discoverPlaylists(block) : [];
     return {
       title: tr("Discover"),
-      sections: [{ title: tr("Recommended Playlists"), playlists: fallback, empty: tr("No recommendations right now") }],
+      sections: [{
+        title: tr("Recommended Playlists"),
+        playlists: fallback,
+        morePage: "playlists",
+        empty: tr("No recommendations right now"),
+      }],
     };
   }
   if (name === "charts") {
