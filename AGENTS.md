@@ -29,7 +29,8 @@
   `/luna/pc/me/collection/mixed`（`item_types` 必须用重复的同名查询参数，不能拼成
   “a,b”），艺人在 `/luna/pc/me/collection/artist`。自己的歌单仍在 unsigned 的
   `/luna/me/playlist`；`playlists()` 必须合并两者并按 `Mine`/`Saved` 标好，收藏来的歌单
-  不能标成 mine。收藏、关注写入后有 1–3 秒最终一致性：写完清对应 `collectionCache`，界面
+  不能标成 mine。`playlists()` 必须过滤 type=1 的「我喜欢的音乐」：侧栏 builtin `liked` 已经是
+  同一份列表，再放进 My Playlists 会重复。收藏、关注写入后有 1–3 秒最终一致性：写完清对应 `collectionCache`，界面
   刷新时以服务端为准，不要做乐观更新。
 - 歌单编辑前必须校验是自己创建的普通歌单（type 2/3/11）；type 1（我喜欢的音乐）只允许通过
   `collection/media` 加删歌，type 4 等固定歌单拒绝修改。排序接口要求提交完整顺序，读取歌单
@@ -44,7 +45,7 @@
 - 官方签名进程必须常驻复用（stdin/stdout 逐行协议），不得每次请求重新 spawn；App 退出时
   stdin 关闭、进程随之结束。`played` 只做「最近播放」上报，失败不影响播放。
 - 听歌模式/私人漫游（`stations` / `stationNext`）只用 PC 侧公开接口（`/luna/pc/feed/mode`、`/luna/pc/discover`、`/luna/pc/feed/song-tab`、`/luna/pc/feed/radio/tracks`），不要要求签名或 spawn，Windows/Linux 也应能取到元数据；`stationNext` 必须按站维护 `count/played/seen/cursor`，对返回曲目去重、`played` 只留最后 30 条，`has_more:false` 或 `next_cursor` 缺失时置 done。
-- `home()` 与 `browse({page:"discover"})` 不得复用同一份推荐数据：首页只保留私人漫游与 `/luna/discover` 的推荐歌单，不要再放榜单/最近播放（侧栏已有独立入口）；发现页用 `/luna/pc/discover/mix` 的编辑精选 + `/luna/pc/feed/song-tab` 的猜你喜欢，失败才回退旧推荐歌单。
+- `home()` 与 `browse({page:"discover"})` 不得复用同一份推荐数据：首页只保留 `/luna/discover` 的推荐歌单，不要再放私人漫游/榜单/最近播放（侧栏都有独立入口）；发现页用 `/luna/pc/discover/mix` 的编辑精选 + `/luna/pc/feed/song-tab` 的猜你喜欢，失败才回退旧推荐歌单。
 - 音质映射固定为：MyGo `standard`→官方 medium、`high`→higher、`lossless`→lossless，
   缺档按 `QUALITY_ORDER` 降级；播放缓存条目必须带 `request` 字段，不同音质不能互相命中。
 - 插件 id 是 `qishui`，展示名「汽水音乐」；数据目录为 `plugin-data/qishui`。

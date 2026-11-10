@@ -1199,14 +1199,6 @@ export async function stationNext({ id }) {
 
 // 首页「推荐」的第一块：官方推荐流是电台，先把私人漫游入口放在最上面。
 // 真正取歌由 stationNext 负责，这里只给一张卡片。
-function personalRadioSection(imageUrl) {
-  return {
-    title: "私人漫游",
-    subtitle: "根据你的口味持续推荐",
-    stations: [{ ...RECOMMEND_STATION, imageUrl: imageUrl || "" }],
-  };
-}
-
 // ---------- PC 发现页 ----------
 // 旧的 /luna/discover 与首页共用同一份歌单，导致「发现」和「首页」第一屏一模一样。
 // PC 发现页的编辑精选和猜你喜欢是另外两组数据，且带 Cookie 即个性化。
@@ -1269,10 +1261,7 @@ export async function home() {
   );
   const playlists = playlistBlock ? discoverPlaylists(playlistBlock) : [];
   const sections = [];
-  if (signedIn()) {
-    const cover = playlists.length ? playlists[playlists.length - 1].imageUrl : "";
-    sections.push(personalRadioSection(cover));
-  }
+  // 私人漫游/听歌模式由侧栏的「听歌模式」页承载；首页不再重复同一张电台卡。
   if (playlists.length) sections.push({ title: "推荐歌单", playlists: playlists.slice(0, 20) });
   // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
   return { title: "汽水音乐", subtitle: "发现好音乐", sections };
@@ -1626,7 +1615,11 @@ export async function playlists() {
     seen.add(item.id);
     out.push(item);
   };
-  for (const raw of own) push(raw, { profileID: me });
+  for (const raw of own) {
+    // 「我喜欢」在侧栏已有独立入口，不再把同一份歌单塞进 My Playlists。
+    if (raw && Number(raw.type) === 1) continue;
+    push(raw, { profileID: me });
+  }
   for (const raw of savedRows) push(raw, { profileID: me, saved: true });
   return out;
 }
