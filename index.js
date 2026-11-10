@@ -214,19 +214,11 @@ let feedModeCache = null;
 let discoverMixCache = null;
 let discoverRadioCache = null;
 let songTabCache = null;
+let songTabSeedCache = null;
 let dailyCache = null;
 const STATION_CACHE_MS = 5 * 60 * 1000;
+const SONG_TAB_SEED_LIMIT = 8;
 const stationStates = {};
-
-// 「换一批推荐」只清推荐类缓存，不动登录态和已缓存的播放地址。
-function clearRecommendationCaches() {
-  discoverCache = null;
-  discoverPending = null;
-  discoverMixCache = null;
-  discoverRadioCache = null;
-  songTabCache = null;
-  dailyCache = null;
-}
 
 function currentSession() {
   if (!session) {
@@ -261,6 +253,12 @@ function clearSession() {
   epoch++;
   session = { cookies: {}, profile: null, signedIn: false };
   discoverCache = null;
+  discoverPending = null;
+  discoverMixCache = null;
+  discoverRadioCache = null;
+  songTabCache = null;
+  songTabSeedCache = null;
+  dailyCache = null;
   likedCache = null;
   host.storage.remove("session");
 }
@@ -1031,16 +1029,6 @@ function modeImageURL(sceneID) {
   }
 }
 
-function refreshImageURL() {
-  try {
-    const dir = String(host.dir || "").replace(/[\\/]+$/, "");
-    if (!dir) return "";
-    return fileURLFor(dir + "/assets/refresh.webp");
-  } catch (error) {
-    return "";
-  }
-}
-
 function modeRowsOf(data) {
   const rows = [];
   const seen = {};
@@ -1362,11 +1350,46 @@ async function recommendedPlaylists(force) {
   return rows;
 }
 
-async function songTabPage(cursor) {
-  const data = await pc("/luna/pc/feed/song-tab", {
-    body: { cursor: String(cursor || ""), count: 20 },
-    timeoutMs: 20000,
-  });
+// 官方 PC 客户端的猜你喜欢请求体要求带 played_media / is_first_request /
+// is_did_first_request / feed_counts；只传 cursor/count 时服务端会退回泛化推荐流。
+// 这里用最近播放做种子，不传 feed_preference，走账号的私人推荐。
+async function songTabSeed() {
+  if (!signedIn()) return [];
+  if (songTabSeedCache && Date.now() - songTabSeedCache.at < STATION_CACHE_MS) {
+    return songTabSeedCache.rows;
+  }
+  let rows = [];
+  try {
+    rows = await recentTracks(SONG_TAB_SEED_LIMIT);
+  } catch (error) {
+    rows = [];
+  }
+  songTabSeedCache = { at: Date.now(), rows };
+  return rows;
+}
+
+function playedMediaOf(tracks) {
+  return (tracks || [])
+    .filter((track) => track && track.id)
+    .map((track) => ({
+      type: "track",
+      media_id: String(track.id),
+      duration: Math.floor((Number(track.duration) || 0) / 1000),
+      played_mills: -1,
+    }));
+}
+
+async function songTabPage(cursor, seed, round) {
+  const currentRound = Math.max(1, Number(round) || 1);
+  const body = {
+    played_media: playedMediaOf(seed),
+    is_first_request: currentRound === 1,
+    is_did_first_request: false,
+    feed_counts: { mix_session_count: currentRound },
+    cursor: String(cursor || ""),
+    count: 20,
+  };
+  const data = await pc("/luna/pc/feed/song-tab", { body, timeoutMs: 20000 });
   return {
     tracks: trackList(
       (data.items || []).map((item) => rawTrackOf(item && item.entity)).filter(Boolean)
@@ -1381,7 +1404,7 @@ async function songTabTracks(force) {
   }
   let tracks = [];
   try {
-    tracks = (await songTabPage("")).tracks;
+    tracks = (await songTabPage("", await songTabSeed(), 1)).tracks;
   } catch (error) {
     tracks = [];
   }
@@ -1409,7 +1432,8 @@ async function dailyTracks(force) {
   try {
     // 第一页确定每页条数；后面的页互不依赖，按固定 cursor 并行请求，避免点开
     // 「每日推荐」后串行等 5、6 次网络往返。
-    const first = await songTabPage("");
+    const seed = await songTabSeed();
+    const first = await songTabPage("", seed, 1);
     if (!first.tracks.length) {
       dailyCache = { at: Date.now(), tracks };
       return tracks;
@@ -1419,7 +1443,9 @@ async function dailyTracks(force) {
       const pageSize = first.tracks.length;
       const pending = [];
       for (let i = 1; i < DAILY_PAGES; i++) {
-        pending.push(songTabPage(String(pageSize * i)).catch(() => ({ tracks: [] })));
+        pending.push(
+          songTabPage(String(pageSize * i), seed, i + 1).catch(() => ({ tracks: [] }))
+        );
       }
       for (const page of await Promise.all(pending)) add(page);
     }
@@ -1555,10 +1581,6 @@ export async function browse({ page }) {
       sections: [{ title: tr("Songs"), tracks, empty: tr("No recommendations right now") }],
     };
   }
-  if (name.indexOf("discover:refresh") === 0) {
-    clearRecommendationCaches();
-    return browse({ page: "discover" });
-  }
   if (name === "discover") {
     // 发现页不再只有「编辑精选 + 6 首猜你喜欢」两行：
     // 编辑精选用 APP 发现页 + PC 编辑精选合并去重后的完整推荐（15–18 张）；
@@ -1595,17 +1617,6 @@ export async function browse({ page }) {
         morePage: "radio",
       });
     }
-    sections.push({
-      title: tr("More"),
-      links: [{
-        title: tr("Refresh Recommendations"),
-        subtitle: tr("Pull a new set from Qishui Music"),
-        imageUrl: refreshImageURL(),
-        // 宿主打开相同 route 会直接 return，所以每次给一个不同的 page id，
-        // 否则第二次点「换一批」不会重新加载。
-        page: "discover:refresh:" + Date.now(),
-      }],
-    });
     return {
       title: tr("Discover"),
       sections,
@@ -1814,6 +1825,12 @@ async function finishSignIn(jar, startedEpoch) {
   checkEpoch(startedEpoch);
   session = { cookies: jar, profile, signedIn: true };
   discoverCache = null;
+  discoverPending = null;
+  discoverMixCache = null;
+  discoverRadioCache = null;
+  songTabCache = null;
+  songTabSeedCache = null;
+  dailyCache = null;
   likedCache = null;
   persistSession();
   host.signInPrompt({ text: tr("Signed in successfully") });
