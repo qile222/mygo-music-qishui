@@ -206,6 +206,7 @@ function acceptCookies(response, jar) {
 let session = null;
 let epoch = 0;
 let discoverCache = null;
+let discoverPending = null;
 let likedCache = null;
 let feedModeCache = null;
 let discoverMixCache = null;
@@ -958,13 +959,38 @@ function discoverCharts(data) {
   return charts;
 }
 
+// 听歌模式卡片的封面从榜单曲目里取：不能用发现页的编辑精选封面，否则首页和发现页
+// 第一屏会是同一组图。这里只取歌曲封面，和歌单封面、电台封面都不重合。
+function chartCoverURLs(data) {
+  const covers = [];
+  const seen = {};
+  for (const chart of discoverCharts(data)) {
+    for (const track of chart.tracks) {
+      const url = track && track.album && track.album.imageUrl;
+      if (!url || seen[url]) continue;
+      seen[url] = true;
+      covers.push(url);
+    }
+  }
+  return covers;
+}
+
 async function discoverData(force) {
   if (!force && discoverCache && Date.now() - discoverCache.at < 180000) {
     return discoverCache.data;
   }
-  const data = await luna("/luna/discover", { body: {} });
-  discoverCache = { at: Date.now(), data };
-  return data;
+  // home() 与 stations() 会并发取同一份首页数据，共享在途请求，避免打两次接口。
+  if (!force && discoverPending) return discoverPending;
+  const request = luna("/luna/discover", { body: {} }).then((data) => {
+    discoverCache = { at: Date.now(), data };
+    return data;
+  });
+  discoverPending = request;
+  try {
+    return await request;
+  } finally {
+    if (discoverPending === request) discoverPending = null;
+  }
 }
 
 // ---------- 听歌模式 / 私人漫游 ----------
@@ -1067,17 +1093,21 @@ async function discoveryRadioStations(force) {
 
 // 官方「听歌模式」页：私人漫游 + 8 个常用模式 + 探索更多新模式（按账号推荐的电台）。
 // 常用模式官方只给了一个透明底的白色线性图标，MyGo 的浅色卡片上几乎看不见；
-// 这里用发现页编辑精选的真实封面做底图（同一个接口本来就要取），没有封面时才回退图标。
+// 这里用榜单曲目的真实封面做底图，另用发现页的电台封面给探索电台，避免和发现页撞图。
 export async function stations() {
-  const [modes, radios, mixes] = await Promise.all([
+  const [modes, radios, data] = await Promise.all([
     feedModeRows(),
     discoveryRadioStations(),
-    discoverMixPlaylists(),
+    discoverData().catch(() => null),
   ]);
   const byScene = {};
   for (const mode of modes) byScene[mode.id] = mode;
-  const covers = [];
-  for (const item of mixes) if (item.imageUrl) covers.push(item.imageUrl);
+  let covers = chartCoverURLs(data);
+  if (!covers.length) {
+    // 首页数据异常时兜底用发现页歌单封面；正常路径不会走到这里。
+    const mixes = await discoverMixPlaylists().catch(() => []);
+    for (const item of mixes) if (item.imageUrl) covers.push(item.imageUrl);
+  }
   let nextCover = 0;
   const cover = () => {
     if (!covers.length) return "";

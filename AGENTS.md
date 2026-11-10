@@ -49,6 +49,7 @@
 - 音质映射固定为：MyGo `standard`→官方 medium、`high`→higher、`lossless`→lossless，
   缺档按 `QUALITY_ORDER` 降级；播放缓存条目必须带 `request` 字段，不同音质不能互相命中。
 - 插件 id 是 `qishui`，`plugin.json` 的 `name` 为英文 key `Qishui Music`（中文 locale 译作「汽水音乐」）；数据目录为 `plugin-data/qishui`。
+- 首页听歌模式卡片的封面只能用独有来源（当前取榜单曲目封面）；不能复用发现页编辑精选的封面，否则首页和发现页第一屏会撞图。
 - 界面文案必须 i18n：所有用户可见字符串写成 `tr("English key")`，英文是 key，中文放在
   `locales/zh-CN.json`。模块顶层不能调用 `host`，所以不要用 `tr()` 初始化顶层常量；在导出函数里
   再翻译。`plugin.json` 的 `name` 与 `navigation[].title` 用英文 key，宿主会读同一个 locale 文件翻译。
