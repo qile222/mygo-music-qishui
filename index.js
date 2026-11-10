@@ -218,6 +218,16 @@ let dailyCache = null;
 const STATION_CACHE_MS = 5 * 60 * 1000;
 const stationStates = {};
 
+// 「换一批推荐」只清推荐类缓存，不动登录态和已缓存的播放地址。
+function clearRecommendationCaches() {
+  discoverCache = null;
+  discoverPending = null;
+  discoverMixCache = null;
+  discoverRadioCache = null;
+  songTabCache = null;
+  dailyCache = null;
+}
+
 function currentSession() {
   if (!session) {
     const saved = host.storage.get("session");
@@ -1021,6 +1031,16 @@ function modeImageURL(sceneID) {
   }
 }
 
+function refreshImageURL() {
+  try {
+    const dir = String(host.dir || "").replace(/[\\/]+$/, "");
+    if (!dir) return "";
+    return fileURLFor(dir + "/assets/refresh.webp");
+  } catch (error) {
+    return "";
+  }
+}
+
 function modeRowsOf(data) {
   const rows = [];
   const seen = {};
@@ -1430,14 +1450,6 @@ export async function home() {
       morePage: "modes",
     });
   }
-  if (exploreStations.length) {
-    sections.push({
-      title: tr("Explore Radio"),
-      subtitle: tr("More scenes and styles"),
-      stations: exploreStations,
-      morePage: "radio",
-    });
-  }
   const playlistBlock = (data.blocks || []).find(
     (item) => item && item.type === "discover_feed_playlist"
   );
@@ -1447,6 +1459,14 @@ export async function home() {
       title: tr("Recommended Playlists"),
       playlists: playlists.slice(0, 20),
       morePage: "playlists",
+    });
+  }
+  if (exploreStations.length) {
+    sections.push({
+      title: tr("Explore Radio"),
+      subtitle: tr("More scenes and styles"),
+      stations: exploreStations,
+      morePage: "radio",
     });
   }
   // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
@@ -1535,33 +1555,60 @@ export async function browse({ page }) {
       sections: [{ title: tr("Songs"), tracks, empty: tr("No recommendations right now") }],
     };
   }
+  if (name.indexOf("discover:refresh") === 0) {
+    clearRecommendationCaches();
+    return browse({ page: "discover" });
+  }
   if (name === "discover") {
-    const [playlists, tracks] = await Promise.all([discoverMixPlaylists(), songTabTracks()]);
-    if (playlists.length || tracks.length) {
-      const sections = [];
-      if (playlists.length) {
-        sections.push({ title: tr("Editor's Picks"), playlists, morePage: "playlists" });
-      }
-      if (tracks.length) sections.push({ title: tr("For You"), tracks, morePage: "daily" });
-      return {
-        title: tr("Discover"),
-        sections,
-      };
+    // 发现页不再只有「编辑精选 + 6 首猜你喜欢」两行：
+    // 编辑精选用 APP 发现页 + PC 编辑精选合并去重后的完整推荐（15–18 张）；
+    // 猜你喜欢直接取「每日推荐」聚合成 20–30 首；再补 3 个榜单各前 10 首和电台。
+    // 这些都是汽水官方现成数据，不额外生成推荐。
+    const [playlists, tracks, data, radios] = await Promise.all([
+      recommendedPlaylists().catch(() => []),
+      dailyTracks().catch(() => []),
+      discoverData().catch(() => null),
+      discoveryRadioStations().catch(() => []),
+    ]);
+    const charts = data ? discoverCharts(data).slice(0, 3) : [];
+    const sections = [];
+    if (playlists.length) {
+      sections.push({ title: tr("Editor's Picks"), playlists, morePage: "playlists" });
     }
-    // PC 接口失败时退回旧的 APP 发现页，至少不要白屏。
-    const data = await discoverData();
-    const block = (data.blocks || []).find(
-      (item) => item && item.type === "discover_feed_playlist"
-    );
-    const fallback = block ? discoverPlaylists(block) : [];
+    if (tracks.length) {
+      sections.push({ title: tr("For You"), tracks, morePage: "daily" });
+    }
+    for (const chart of charts) {
+      if (!chart.tracks.length) continue;
+      sections.push({
+        title: chart.title,
+        subtitle: chart.description || undefined,
+        tracks: chart.tracks.slice(0, 10),
+        morePage: "chart:" + chart.title,
+      });
+    }
+    if (radios.length) {
+      sections.push({
+        title: tr("Explore Radio"),
+        subtitle: tr("More scenes and styles"),
+        stations: radios.slice(0, 15),
+        morePage: "radio",
+      });
+    }
+    sections.push({
+      title: tr("More"),
+      links: [{
+        title: tr("Refresh Recommendations"),
+        subtitle: tr("Pull a new set from Qishui Music"),
+        imageUrl: refreshImageURL(),
+        // 宿主打开相同 route 会直接 return，所以每次给一个不同的 page id，
+        // 否则第二次点「换一批」不会重新加载。
+        page: "discover:refresh:" + Date.now(),
+      }],
+    });
     return {
       title: tr("Discover"),
-      sections: [{
-        title: tr("Recommended Playlists"),
-        playlists: fallback,
-        morePage: "playlists",
-        empty: tr("No recommendations right now"),
-      }],
+      sections,
     };
   }
   if (name === "charts") {
