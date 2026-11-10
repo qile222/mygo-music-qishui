@@ -213,11 +213,10 @@ let likedCache = null;
 let feedModeCache = null;
 let discoverMixCache = null;
 let discoverRadioCache = null;
-let songTabCache = null;
-let songTabSeedCache = null;
 let dailyCache = null;
 const STATION_CACHE_MS = 5 * 60 * 1000;
-const SONG_TAB_SEED_LIMIT = 8;
+// 官方 PC 推荐流会带设备首次使用时间；首次请求还要告诉服务端这是首次。
+const FEED_FIRST_USE_KEY = "feed-first-use";
 const stationStates = {};
 
 function currentSession() {
@@ -256,8 +255,6 @@ function clearSession() {
   discoverPending = null;
   discoverMixCache = null;
   discoverRadioCache = null;
-  songTabCache = null;
-  songTabSeedCache = null;
   dailyCache = null;
   likedCache = null;
   host.storage.remove("session");
@@ -1222,19 +1219,11 @@ async function stationNextFeed(id) {
   const state = stationState(id);
   const count = state.count + 1;
   state.count = count;
-  const body = {
-    played_media: state.played.map((track) => ({
-      type: "track",
-      media_id: track.id,
-      duration: Math.floor((Number(track.duration) || 0) / 1000),
-      played_mills: -1,
-    })),
-    is_first_request: count === 1,
-    is_did_first_request: false,
-    feed_counts: { mix_session_count: count },
-  };
-  const preference = feedPreferenceOf(id);
-  if (preference) body.feed_preference = preference;
+  const body = feedRequestBody({
+    played: state.played,
+    count,
+    preference: feedPreferenceOf(id),
+  });
   let data;
   try {
     data = await pc("/luna/pc/feed/song-tab", { body, timeoutMs: 20000 });
@@ -1350,24 +1339,6 @@ async function recommendedPlaylists(force) {
   return rows;
 }
 
-// 官方 PC 客户端的猜你喜欢请求体要求带 played_media / is_first_request /
-// is_did_first_request / feed_counts；只传 cursor/count 时服务端会退回泛化推荐流。
-// 这里用最近播放做种子，不传 feed_preference，走账号的私人推荐。
-async function songTabSeed() {
-  if (!signedIn()) return [];
-  if (songTabSeedCache && Date.now() - songTabSeedCache.at < STATION_CACHE_MS) {
-    return songTabSeedCache.rows;
-  }
-  let rows = [];
-  try {
-    rows = await recentTracks(SONG_TAB_SEED_LIMIT);
-  } catch (error) {
-    rows = [];
-  }
-  songTabSeedCache = { at: Date.now(), rows };
-  return rows;
-}
-
 function playedMediaOf(tracks) {
   return (tracks || [])
     .filter((track) => track && track.id)
@@ -1379,16 +1350,65 @@ function playedMediaOf(tracks) {
     }));
 }
 
-async function songTabPage(cursor, seed, round) {
-  const currentRound = Math.max(1, Number(round) || 1);
+// 官方推荐流（/luna/pc/feed/song-tab）的请求体。普通推荐带设备首次使用时间，
+// 模式推荐只带 feed_preference；两者都不伪造播放时长。
+// did_first_use_time 是「这台设备第一次用推荐流」的时间，跟 device_id 绑定，
+// 所以换设备号时重新记一次，不能拿账号或会话时间冒充。
+function feedFirstUse() {
+  const now = Math.floor(Date.now() / 1000);
+  const deviceID = deviceProfile().id;
+  let saved = null;
+  try {
+    saved = host.storage.get(FEED_FIRST_USE_KEY);
+  } catch (error) {
+    saved = null;
+  }
+  if (saved && typeof saved === "object" && String(saved.deviceID || "") === deviceID) {
+    const time = Number(saved.time);
+    if (Number.isSafeInteger(time) && time > 0) {
+      return { time, firstDeviceRequest: false };
+    }
+  }
+  try {
+    host.storage.set(FEED_FIRST_USE_KEY, { deviceID, time: now });
+  } catch (error) {
+    // 存不下不影响推荐，下一次再尝试。
+  }
+  return { time: now, firstDeviceRequest: true };
+}
+
+function feedRequestBody(options) {
+  const opts = options || {};
+  const preference = opts.preference || null;
+  const count = Math.max(1, Number(opts.count) || 1);
   const body = {
-    played_media: playedMediaOf(seed),
-    is_first_request: currentRound === 1,
-    is_did_first_request: false,
-    feed_counts: { mix_session_count: currentRound },
-    cursor: String(cursor || ""),
-    count: 20,
+    played_media: playedMediaOf(opts.played),
+    is_first_request: count === 1,
+    feed_counts: { mix_session_count: count },
   };
+  if (preference) {
+    body.is_did_first_request = false;
+    body.feed_preference = preference;
+  } else {
+    const firstUse = feedFirstUse();
+    body.is_did_first_request = firstUse.firstDeviceRequest;
+    body.did_first_use_time = firstUse.time;
+  }
+  if (opts.cursor !== undefined) body.cursor = String(opts.cursor || "");
+  if (opts.pageCount) body.count = opts.pageCount;
+  return body;
+}
+
+// played_media 的官方语义是「已经下发给客户端、但还没开始播的待播曲目」，
+// 不是听歌历史；played_mills 传 -1 表示未播放、不编造时长。
+async function songTabPage(cursor, round, pending) {
+  const currentRound = Math.max(1, Number(round) || 1);
+  const body = feedRequestBody({
+    played: pending,
+    count: currentRound,
+    cursor: String(cursor || ""),
+    pageCount: 20,
+  });
   const data = await pc("/luna/pc/feed/song-tab", { body, timeoutMs: 20000 });
   return {
     tracks: trackList(
@@ -1396,20 +1416,6 @@ async function songTabPage(cursor, seed, round) {
     ),
     hasMore: data.has_more !== false,
   };
-}
-
-async function songTabTracks(force) {
-  if (!force && songTabCache && Date.now() - songTabCache.at < STATION_CACHE_MS) {
-    return songTabCache.tracks;
-  }
-  let tracks = [];
-  try {
-    tracks = (await songTabPage("", await songTabSeed(), 1)).tracks;
-  } catch (error) {
-    tracks = [];
-  }
-  songTabCache = { at: Date.now(), tracks };
-  return tracks;
 }
 
 // 发现页 For You 的「More」：官方猜你喜欢一次只返回 6 首，按已取条数翻 6 页聚合成
@@ -1432,8 +1438,7 @@ async function dailyTracks(force) {
   try {
     // 第一页确定每页条数；后面的页互不依赖，按固定 cursor 并行请求，避免点开
     // 「每日推荐」后串行等 5、6 次网络往返。
-    const seed = await songTabSeed();
-    const first = await songTabPage("", seed, 1);
+    const first = await songTabPage("", 1);
     if (!first.tracks.length) {
       dailyCache = { at: Date.now(), tracks };
       return tracks;
@@ -1441,13 +1446,16 @@ async function dailyTracks(force) {
     add(first);
     if (first.hasMore && tracks.length < DAILY_LIMIT) {
       const pageSize = first.tracks.length;
-      const pending = [];
+      // 首屏这批是已下发但尚未播放的待播曲目；后续页带上它们，既符合官方字段
+      // 语义，也能让服务端少返回重复曲目。
+      const pendingTracks = first.tracks.slice(0, 30);
+      const requests = [];
       for (let i = 1; i < DAILY_PAGES; i++) {
-        pending.push(
-          songTabPage(String(pageSize * i), seed, i + 1).catch(() => ({ tracks: [] }))
+        requests.push(
+          songTabPage(String(pageSize * i), i + 1, pendingTracks).catch(() => ({ tracks: [] }))
         );
       }
-      for (const page of await Promise.all(pending)) add(page);
+      for (const page of await Promise.all(requests)) add(page);
     }
   } catch (error) {
     // 首屏已经有歌时保留；全部失败则让 More 页显示空状态。
@@ -1828,8 +1836,6 @@ async function finishSignIn(jar, startedEpoch) {
   discoverPending = null;
   discoverMixCache = null;
   discoverRadioCache = null;
-  songTabCache = null;
-  songTabSeedCache = null;
   dailyCache = null;
   likedCache = null;
   persistSession();

@@ -990,10 +990,13 @@ type 为准。
 | 45 | POST | {PC}/luna/pc/discover | `{"first_request":true,"pc_new_discover_request":true}` | `blocks[].inner_block[].resources[]`：`type="radio"` 用 `resource_id` 作电台 ID，`style.title/desc/cover_url_list` 展示；`type="playlist"` 用 `entity.playlist` |
 | 46 | POST | {PC}/luna/pc/discover/mix | `{}` | `inner_block[]`（`discover_playlist`），资源在 `resource.entity.playlist`，封面在 `style.cover_url` 或 playlist |
 | 47 | POST | {PC}/luna/pc/feed/radio/tracks | `{"radio_id":"<id>","count":6,"flow_type":1|2}`，翻页可带 `cursor` | `items[].entity.track_wrapper.track`、`has_more`、`next_cursor`；`style.type===6`→`flow_type=1`，否则 `flow_type=2`，不传会得到无关推荐流 |
-| 48 | POST | {PC}/luna/pc/feed/song-tab | `{"played_media":[{"type":"track","media_id":"<id>","duration":秒,"played_mills":-1}],"is_first_request":true,"is_did_first_request":false,"feed_counts":{"mix_session_count":1},"feed_preference":{"preference_mode":"familiar"}}` | `items[]` 6 首、`has_more`；`cursor` 是已获取条数，页间会重叠，必须去重 |
+| 48 | POST | {PC}/luna/pc/feed/song-tab | 普通推荐：`{"played_media":[],"is_first_request":true,"is_did_first_request":true,"did_first_use_time":<Unix秒>,"feed_counts":{"mix_session_count":1}}`；模式推荐：`{"played_media":[],"is_first_request":true,"is_did_first_request":false,"feed_counts":{"mix_session_count":1},"feed_preference":{"preference_mode":"familiar"}}` | `items[]` 6 首、`has_more`；`cursor` 是已获取条数，页间会重叠，必须去重 |
 
 要点：
+- `played_media` 是「已下发给客户端、但还没开始播放的待播曲目」，不是听歌历史；每项 `{type:"track",media_id,duration:秒,played_mills:-1}`，首屏可为空。
+- 普通推荐首次请求带 `is_did_first_request:true` 和 `did_first_use_time`（设备首次使用推荐流的时间，Unix 秒，与 device id 绑定）；之后同一设备都传 `false` 和同一个时间。模式推荐只带 `feed_preference`，不带 `did_first_use_time`。
 - `feed_preference` 可为 `{"preference_mode":"familiar"|"fresh"}` 或 `{"scene_mode_id":3|5|6|9|33|34}`；不传则为私人推荐。
+- `is_first_request` 按 `feed_counts.mix_session_count === 1` 判定；后续批次要带上上一批已下发未播放的曲目作为 `played_media`。
 - 听歌模式页 UI 对应：常用模式（熟悉/新鲜/抖音漫游/摸鱼/驾车/快乐时光/Chill 放松/专注）+ 探索电台；`stations()` 合并两者，`stationNext` 按 id 分流到 #48 / #47。
 - 这些 PC 接口用普通 Cookie 即可，不需要官方签名；因此非 macOS 也能读元数据（播放仍受平台限制）。
 - `feed/song-tab` 的 `predict_info` 等字段含长小数，插件 `parseData` 必须只对 ≥16 位整数字面量加引号，不能把小数部分拆开，否则 JSON 解析失败。

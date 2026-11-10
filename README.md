@@ -41,11 +41,12 @@
   英文 key 直接内置；插件名和侧栏标题也由宿主按同样的语言文件翻译
 
 推荐内容全部来自汽水官方接口：编辑精选用 APP `/luna/discover` 的发现歌单 + PC
-`/luna/pc/discover/mix` 的编辑精选合并去重；猜你喜欢用 PC `/luna/pc/feed/song-tab` 聚合，
-请求里带最近播放作为 `played_media` 种子，并且不传 `feed_preference`，让服务端按账号的
-私人推荐返回；榜单来自 `/luna/discover` 的 top song list；探索电台来自 PC
-`/luna/pc/discover`，该接口每次请求会轮换一批「猜你喜欢」电台，插件只展示服务端当次返回的
-结果，不自己编造或重排。推荐缓存 3–5 分钟。
+`/luna/pc/discover/mix` 的编辑精选合并去重；猜你喜欢用 PC `/luna/pc/feed/song-tab` 聚合：
+首屏带 `is_first_request`、`is_did_first_request`、`did_first_use_time`（设备首次使用时间，
+随 device id 持久化）和账号 Cookie；后续页把首屏已下发但未播放的曲目作为 `played_media`
+（`played_mills:-1`）带上，不传 `feed_preference`，让服务端按账号的私人推荐返回；榜单来自
+`/luna/discover` 的 top song list；探索电台来自 PC `/luna/pc/discover`，该接口每次请求会轮换
+一批「猜你喜欢」电台，插件只展示服务端当次返回的结果，不自己编造或重排。推荐缓存 3–5 分钟。
 
 听歌模式图片：汽水官方 `/luna/pc/feed/mode` 只返回透明底白色图标（不是照片），直接放在 MyGo
 的浅色卡片上几乎看不见。插件把这些官方图标离线处理成白色图形 + **每个模式不同颜色的渐变方卡**
