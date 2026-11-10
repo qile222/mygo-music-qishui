@@ -1,194 +1,52 @@
 {
-  "recommendations": {
-    "icon": "radio",
-    "label": "私人漫游 / Private Radio"
-  },
-  "familiar": {
-    "icon": "repeat-2",
-    "label": "熟悉模式 / Familiar"
-  },
-  "fresh": {
-    "icon": "sparkles",
-    "label": "新鲜模式 / Fresh"
-  },
-  "9": {
-    "icon": "smartphone",
-    "label": "抖音漫游 / Douyin Viral"
-  },
-  "34": {
-    "icon": "fish",
-    "label": "摸鱼 / Slacking Off"
-  },
-  "33": {
-    "icon": "car",
-    "label": "驾车 / Driving"
-  },
-  "5": {
-    "icon": "smile",
-    "label": "快乐时光 / Happy Hour"
-  },
-  "4": {
-    "icon": "moon-star",
-    "label": "深夜 EMO"
-  },
-  "8": {
-    "icon": "bed",
-    "label": "助眠模式"
-  },
-  "7": {
-    "icon": "disc-3",
-    "label": "DJ 模式"
-  },
-  "2": {
-    "icon": "dumbbell",
-    "label": "动感健身"
-  },
-  "3": {
-    "icon": "leaf",
-    "label": "Chill 放松 / Chill"
-  },
-  "41": {
-    "icon": "droplets",
-    "label": "洗澡"
-  },
-  "11": {
-    "icon": "zap",
-    "label": "电音"
-  },
-  "45": {
-    "icon": "clover",
-    "label": "好运"
-  },
-  "48": {
-    "icon": "book-open",
-    "label": "图书馆"
-  },
-  "10": {
-    "icon": "captions",
-    "label": "粤语"
-  },
-  "1": {
-    "icon": "train-front",
-    "label": "通勤必听"
-  },
-  "13": {
-    "icon": "heart-crack",
-    "label": "失恋必听"
-  },
-  "44": {
-    "icon": "sofa",
-    "label": "躺平"
-  },
-  "15": {
-    "icon": "globe",
-    "label": "欧美"
-  },
-  "47": {
-    "icon": "brush-cleaning",
-    "label": "打扫"
-  },
-  "12": {
-    "icon": "scroll-text",
-    "label": "国风"
-  },
-  "37": {
-    "icon": "gamepad-2",
-    "label": "游戏"
-  },
-  "6": {
-    "icon": "target",
-    "label": "专注模式 / Focus"
-  },
-  "24": {
-    "icon": "mic-2",
-    "label": "说唱 / Rap"
-  },
-  "14": {
-    "icon": "audio-waveform",
-    "label": "沉浸 0.8x"
-  },
-  "40": {
-    "icon": "moon",
-    "label": "晚安"
-  },
-  "21": {
-    "icon": "heart-pulse",
-    "label": "心动"
-  },
-  "25": {
-    "icon": "music-2",
-    "label": "轻音乐"
-  },
-  "18": {
-    "icon": "wine",
-    "label": "小酌"
-  },
-  "31": {
-    "icon": "mic-vocal",
-    "label": "KTV"
-  },
-  "38": {
-    "icon": "sunrise",
-    "label": "早起"
-  },
-  "19": {
-    "icon": "heart",
-    "label": "甜蜜"
-  },
-  "28": {
-    "icon": "drum",
-    "label": "摇滚"
-  },
-  "23": {
-    "icon": "audio-lines",
-    "label": "R&B"
-  },
-  "20": {
-    "icon": "flower-2",
-    "label": "佛系"
-  },
-  "16": {
-    "icon": "cassette-tape",
-    "label": "怀旧"
-  },
-  "29": {
-    "icon": "guitar",
-    "label": "民谣"
-  },
-  "17": {
-    "icon": "mic",
-    "label": "甜美女声"
-  },
-  "22": {
-    "icon": "star",
-    "label": "K-pop"
-  },
-  "30": {
-    "icon": "languages",
-    "label": "日语"
-  },
-  "36": {
-    "icon": "plane",
-    "label": "旅行"
-  },
-  "26": {
-    "icon": "baby",
-    "label": "儿歌"
-  },
-  "35": {
-    "icon": "cloud-rain",
-    "label": "雨天"
-  },
-  "39": {
-    "icon": "waves",
-    "label": "海边"
-  },
-  "27": {
-    "icon": "trees",
-    "label": "森林"
-  },
-  "32": {
-    "icon": "piano",
-    "label": "钢琴"
+  "source": "https://api.qishui.com/luna/pc/feed/mode (official scene-mode url_info icons)",
+  "style": "Official Qishui glyph recoloured white and centered on a short neutral dark pill for light/dark MyGo cards; no redrawn or substituted artwork.",
+  "size": 400,
+  "modes": {
+    "9": "抖音漫游",
+    "34": "摸鱼",
+    "33": "驾车",
+    "5": "快乐时光",
+    "4": "深夜 EMO",
+    "8": "助眠模式",
+    "7": "DJ模式",
+    "2": "动感健身",
+    "3": "Chill 放松",
+    "41": "洗澡",
+    "11": "电音",
+    "45": "好运",
+    "48": "图书馆",
+    "10": "粤语",
+    "1": "通勤必听",
+    "13": "失恋必听",
+    "44": "躺平",
+    "15": "欧美",
+    "47": "打扫",
+    "12": "国风",
+    "37": "打游戏",
+    "6": "专注模式",
+    "24": "说唱",
+    "14": "沉浸0.8x",
+    "40": "夜晚",
+    "21": "治愈",
+    "25": "轻音乐",
+    "18": "小酒馆",
+    "31": "KTV必点",
+    "38": "起床",
+    "19": "浪漫情歌",
+    "28": "摇滚",
+    "23": "R&B",
+    "20": "佛系时间",
+    "16": "怀旧老歌",
+    "29": "民谣",
+    "17": "甜美女声",
+    "22": "K-pop",
+    "30": "日语",
+    "36": "旅行",
+    "26": "儿歌",
+    "35": "雨天",
+    "39": "海边",
+    "27": "乡村",
+    "32": "古典"
   }
 }

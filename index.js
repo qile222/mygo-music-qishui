@@ -1003,24 +1003,18 @@ const COMMON_MODE_DEFS = [
   { id: "scene:6", name: "Focus", description: "Background music for getting things done" },
 ];
 
-// 听歌模式图片：官方接口只给透明底白色线性图标，放在 MyGo 的浅色卡片上几乎不可见；
-// 之前随手拿榜单/歌单封面当底图，会让「粤语」显示成林俊杰这类错配。这里改用随插件
-// 分发的 Lucide 语义图标瓦片（ISC），每张图与模式含义一致，且首页与全部模式页同图。
-// 文件在 assets/modes/<key>.webp；key 就是 scene id / familiar / fresh / recommendations。
-function modeAssetKey(id) {
-  if (id === "recommendations") return "recommendations";
-  if (id.indexOf("preference:") === 0) return id.slice("preference:".length);
-  if (id.indexOf("scene:") === 0) return id.slice("scene:".length);
-  return "";
-}
-
-function modeImageURL(id) {
-  const key = modeAssetKey(id);
-  if (!key) return "";
+// 听歌模式图片：使用汽水 /luna/pc/feed/mode 返回的官方 url_info 图标，按场景 id
+// 预生成 assets/modes/<sceneID>.webp。官方图标本身是透明底白色线稿，MyGo 的浅色卡片
+// 上几乎看不见，所以只做展示层处理：保留官方图形，改成白色并放在矮的横向深色胶囊里；
+// 不重画、不替换成别的图标。私人漫游和熟悉/新鲜模式官方接口没有返回图标，保留宿主
+// 自带的电台图标作为占位。
+function modeImageURL(sceneID) {
+  const id = String(sceneID === undefined || sceneID === null ? "" : sceneID).trim();
+  if (!/^\d{1,20}$/.test(id)) return "";
   try {
     const dir = String(host.dir || "").replace(/[\\/]+$/, "");
     if (!dir) return "";
-    return fileURLFor(dir + "/assets/modes/" + key + ".webp");
+    return fileURLFor(dir + "/assets/modes/" + id + ".webp");
   } catch (error) {
     return "";
   }
@@ -1102,15 +1096,33 @@ async function discoveryRadioStations(force) {
 }
 
 // 官方「听歌模式」页：私人漫游 + 8 个常用模式 + 探索更多新模式（按账号推荐的电台）。
-// 45 个模式接口只给透明底白色线性图标，随机拿榜单/歌单封面又会让语义错配；这里统一用
-// 随插件分发的 Lucide 语义瓦片，首页和全部模式页复用同一份卡片，图片与模式含义一致。
+// 45 个模式接口只给透明底白色图标，随机拿榜单/歌单封面又会让语义错配；这里统一用
+// 从官方 url_info 生成的横向胶囊，首页和全部模式页复用同一份卡片，图形仍是官方的。
+function sceneImage(modesByID, sceneID) {
+  const id = String(sceneID === undefined || sceneID === null ? "" : sceneID).trim();
+  if (!id) return "";
+  const local = modeImageURL(id);
+  if (local) return local;
+  const mode = modesByID[id];
+  return mode && mode.imageUrl ? mode.imageUrl : "";
+}
+
+function cardsWithImage(cards) {
+  return (cards || []).filter((card) => card && card.imageUrl);
+}
+
 async function listeningModeCards() {
   const modes = await feedModeRows();
+  const modesByID = {};
+  for (const mode of modes) {
+    if (mode && mode.id) modesByID[mode.id] = mode;
+  }
   const cards = [
     {
       ...RECOMMEND_STATION,
       name: tr(RECOMMEND_STATION.name),
       description: tr(RECOMMEND_STATION.description),
+      // 官方接口没有返回私人漫游图标，留空让宿主显示电台占位图，不伪造。
       imageUrl: modeImageURL(RECOMMEND_STATION.id),
     },
   ];
@@ -1122,8 +1134,8 @@ async function listeningModeCards() {
       id: def.id,
       name: tr(def.name),
       description: tr(def.description),
-      // 本地瓦片缺失时不拿官方白色图标凑数，留空让宿主显示占位图。
-      imageUrl: modeImageURL(def.id),
+      // 熟悉/新鲜官方没有图标，留空让宿主显示占位图；场景模式用官方图标生成的本地胶囊。
+      imageUrl: sceneID ? sceneImage(modesByID, sceneID) : "",
     });
   }
   for (const mode of modes) {
@@ -1132,7 +1144,7 @@ async function listeningModeCards() {
       id: "scene:" + mode.id,
       name: mode.name ? tr(mode.name) : tr("Scene radio"),
       description: "",
-      imageUrl: modeImageURL("scene:" + mode.id),
+      imageUrl: modeImageURL(mode.id) || mode.imageUrl || "",
     });
   }
   return { cards };
@@ -1143,7 +1155,7 @@ export async function stations() {
     listeningModeCards(),
     discoveryRadioStations(),
   ]);
-  const list = cards.slice(0, 9);
+  const list = cardsWithImage(cards).slice(0, 9);
   for (const radio of radios) {
     if (list.length >= 24) break;
     list.push(radio);
@@ -1360,19 +1372,21 @@ async function dailyTracks(force) {
 
 export async function home() {
   warmSignature();
-  const [data, allStations] = await Promise.all([
+  const [{ cards }, radios, data] = await Promise.all([
+    listeningModeCards(),
+    discoveryRadioStations().catch(() => []),
     discoverData(),
-    stations().catch(() => []),
   ]);
   const sections = [];
-  // 听歌模式直接放在首页：前 9 个是私人漫游 + 8 个常用模式，其余是探索电台。
-  const commonStations = allStations.slice(0, 9);
-  const exploreStations = allStations.slice(9);
-  if (commonStations.length) {
+  // 只展示有官方图的模式；私人漫游/熟悉/新鲜虽然接口能播，但官方没有返回图标，
+  // 放进方形卡片会变成三张空白占位图，所以默认页先不展示。
+  const commonModes = cardsWithImage(cards).slice(0, 9);
+  const exploreStations = radios.slice(0, 15);
+  if (commonModes.length) {
     sections.push({
       title: tr("Listening Modes"),
-      subtitle: tr("Private Radio and common modes. Tap a card to keep the music going."),
-      stations: commonStations,
+      subtitle: tr("Official Qishui listening modes. Tap a card to keep the music going."),
+      stations: commonModes,
       morePage: "modes",
     });
   }
@@ -1395,9 +1409,39 @@ export async function home() {
 export async function browse({ page }) {
   const name = String(page || "");
   if (name === "modes") {
+    // 默认页按汽水官方结构：常用模式 + 探索更多新模式（官方照片电台）。45 个场景
+    // 图标不在这里铺满，避免一整页同色图标；需要时通过「See All」进入 all-modes。
+    const [{ cards }, radios] = await Promise.all([
+      listeningModeCards(),
+      discoveryRadioStations(),
+    ]);
+    const common = cardsWithImage(cards).slice(0, 9);
+    const sections = [];
+    if (common.length) {
+      sections.push({
+        title: tr("Common Modes"),
+        stations: common,
+        morePage: "all-modes",
+      });
+    }
+    if (radios.length) {
+      sections.push({
+        title: tr("Explore More Modes"),
+        subtitle: tr("Recommended by Qishui Music"),
+        stations: radios.slice(0, 15),
+      });
+    }
+    return {
+      title: tr("Listening Modes"),
+      subtitle: tr("Pick a common mode, or discover more by cover"),
+      sections,
+    };
+  }
+  if (name === "all-modes") {
     const { cards } = await listeningModeCards();
-    const common = cards.slice(0, 9);
-    const more = cards.slice(9);
+    const visible = cardsWithImage(cards);
+    const common = visible.slice(0, 9);
+    const more = visible.slice(9);
     const sections = [];
     if (common.length) sections.push({ title: tr("Common Modes"), stations: common });
     if (more.length) sections.push({ title: tr("More Modes"), stations: more });
