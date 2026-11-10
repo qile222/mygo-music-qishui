@@ -45,7 +45,7 @@
 - 官方签名进程必须常驻复用（stdin/stdout 逐行协议），不得每次请求重新 spawn；App 退出时
   stdin 关闭、进程随之结束。`played` 只做「最近播放」上报，失败不影响播放。
 - 听歌模式/私人漫游（`stations` / `stationNext`）只用 PC 侧公开接口（`/luna/pc/feed/mode`、`/luna/pc/discover`、`/luna/pc/feed/song-tab`、`/luna/pc/feed/radio/tracks`），不要要求签名或 spawn，Windows/Linux 也应能取到元数据；`stationNext` 必须按站维护 `count/played/seen/cursor`，对返回曲目去重、`played` 只留最后 30 条，`has_more:false` 或 `next_cursor` 缺失时置 done。
-- `home()` 与 `browse({page:"discover"})` 不得复用同一份推荐数据：首页只保留 `/luna/discover` 的推荐歌单，不要再放私人漫游/榜单/最近播放（侧栏都有独立入口）；发现页用 `/luna/pc/discover/mix` 的编辑精选 + `/luna/pc/feed/song-tab` 的猜你喜欢，失败才回退旧推荐歌单。
+- `home()` 与 `browse({page:"discover"})` 不得复用同一份推荐数据：首页放听歌模式（`stations()`，前 9 个为私人漫游+常用模式、其余为探索电台）+ `/luna/discover` 的推荐歌单，不要再放榜单/最近播放（侧栏有独立入口）；发现页用 `/luna/pc/discover/mix` 的编辑精选 + `/luna/pc/feed/song-tab` 的猜你喜欢，失败才回退旧推荐歌单。听歌模式已并入首页，plugin.json 不再注册 `stations` 导航。
 - 音质映射固定为：MyGo `standard`→官方 medium、`high`→higher、`lossless`→lossless，
   缺档按 `QUALITY_ORDER` 降级；播放缓存条目必须带 `request` 字段，不同音质不能互相命中。
 - 插件 id 是 `qishui`，展示名「汽水音乐」；数据目录为 `plugin-data/qishui`。

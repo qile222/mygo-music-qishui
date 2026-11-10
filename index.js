@@ -1255,16 +1255,35 @@ async function songTabTracks(force) {
 
 export async function home() {
   warmSignature();
-  const data = await discoverData();
+  const [data, allStations] = await Promise.all([
+    discoverData(),
+    stations().catch(() => []),
+  ]);
+  const sections = [];
+  // 听歌模式直接放在首页：前 9 个是私人漫游 + 8 个常用模式，其余是探索电台。
+  const commonStations = allStations.slice(0, 9);
+  const exploreStations = allStations.slice(9);
+  if (commonStations.length) {
+    sections.push({
+      title: "听歌模式",
+      subtitle: "私人漫游与常用模式，点卡片持续播放",
+      stations: commonStations,
+    });
+  }
+  if (exploreStations.length) {
+    sections.push({
+      title: "探索电台",
+      subtitle: "更多场景与风格",
+      stations: exploreStations,
+    });
+  }
   const playlistBlock = (data.blocks || []).find(
     (item) => item && item.type === "discover_feed_playlist"
   );
   const playlists = playlistBlock ? discoverPlaylists(playlistBlock) : [];
-  const sections = [];
-  // 私人漫游/听歌模式由侧栏的「听歌模式」页承载；首页不再重复同一张电台卡。
   if (playlists.length) sections.push({ title: "推荐歌单", playlists: playlists.slice(0, 20) });
   // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
-  return { title: "汽水音乐", subtitle: "发现好音乐", sections };
+  return { title: "汽水音乐", subtitle: "听歌模式与推荐歌单", sections };
 }
 
 export async function browse({ page }) {
