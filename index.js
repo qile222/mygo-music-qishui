@@ -962,22 +962,6 @@ function discoverCharts(data) {
   return charts;
 }
 
-// 听歌模式卡片的封面从榜单曲目里取：不能用发现页的编辑精选封面，否则首页和发现页
-// 第一屏会是同一组图。这里只取歌曲封面，和歌单封面、电台封面都不重合。
-function chartCoverURLs(data) {
-  const covers = [];
-  const seen = {};
-  for (const chart of discoverCharts(data)) {
-    for (const track of chart.tracks) {
-      const url = track && track.album && track.album.imageUrl;
-      if (!url || seen[url]) continue;
-      seen[url] = true;
-      covers.push(url);
-    }
-  }
-  return covers;
-}
-
 async function discoverData(force) {
   if (!force && discoverCache && Date.now() - discoverCache.at < 180000) {
     return discoverCache.data;
@@ -1018,6 +1002,29 @@ const COMMON_MODE_DEFS = [
   { id: "scene:3", name: "Chill", description: "Relax, breathe slowly" },
   { id: "scene:6", name: "Focus", description: "Background music for getting things done" },
 ];
+
+// 听歌模式图片：官方接口只给透明底白色线性图标，放在 MyGo 的浅色卡片上几乎不可见；
+// 之前随手拿榜单/歌单封面当底图，会让「粤语」显示成林俊杰这类错配。这里改用随插件
+// 分发的 Lucide 语义图标瓦片（ISC），每张图与模式含义一致，且首页与全部模式页同图。
+// 文件在 assets/modes/<key>.webp；key 就是 scene id / familiar / fresh / recommendations。
+function modeAssetKey(id) {
+  if (id === "recommendations") return "recommendations";
+  if (id.indexOf("preference:") === 0) return id.slice("preference:".length);
+  if (id.indexOf("scene:") === 0) return id.slice("scene:".length);
+  return "";
+}
+
+function modeImageURL(id) {
+  const key = modeAssetKey(id);
+  if (!key) return "";
+  try {
+    const dir = String(host.dir || "").replace(/[\\/]+$/, "");
+    if (!dir) return "";
+    return fileURLFor(dir + "/assets/modes/" + key + ".webp");
+  } catch (error) {
+    return "";
+  }
+}
 
 function modeRowsOf(data) {
   const rows = [];
@@ -1095,45 +1102,28 @@ async function discoveryRadioStations(force) {
 }
 
 // 官方「听歌模式」页：私人漫游 + 8 个常用模式 + 探索更多新模式（按账号推荐的电台）。
-// 常用模式官方只给了一个透明底的白色线性图标，MyGo 的浅色卡片上几乎看不见；
-// 这里用榜单曲目的真实封面做底图，另用发现页的电台封面给探索电台，避免和发现页撞图。
-// 全部模式页（More）复用同一份卡片和封面，保证首页与更多页的同一模式外观一致。
+// 45 个模式接口只给透明底白色线性图标，随机拿榜单/歌单封面又会让语义错配；这里统一用
+// 随插件分发的 Lucide 语义瓦片，首页和全部模式页复用同一份卡片，图片与模式含义一致。
 async function listeningModeCards() {
-  const [modes, data] = await Promise.all([
-    feedModeRows(),
-    discoverData().catch(() => null),
-  ]);
-  const byScene = {};
-  for (const mode of modes) byScene[mode.id] = mode;
-  let covers = chartCoverURLs(data);
-  if (!covers.length) {
-    // 首页数据异常时兜底用发现页歌单封面；正常路径不会走到这里。
-    const mixes = await discoverMixPlaylists().catch(() => []);
-    for (const item of mixes) if (item.imageUrl) covers.push(item.imageUrl);
-  }
-  let nextCover = 0;
-  const cover = () => {
-    if (!covers.length) return "";
-    return covers[nextCover++ % covers.length];
-  };
+  const modes = await feedModeRows();
   const cards = [
     {
       ...RECOMMEND_STATION,
       name: tr(RECOMMEND_STATION.name),
       description: tr(RECOMMEND_STATION.description),
-      imageUrl: cover(),
+      imageUrl: modeImageURL(RECOMMEND_STATION.id),
     },
   ];
   const commonScenes = {};
   for (const def of COMMON_MODE_DEFS) {
     const sceneID = def.id.indexOf("scene:") === 0 ? def.id.slice(6) : "";
     if (sceneID) commonScenes[sceneID] = true;
-    const scene = sceneID ? byScene[sceneID] : null;
     cards.push({
       id: def.id,
       name: tr(def.name),
       description: tr(def.description),
-      imageUrl: cover() || (scene ? scene.imageUrl : ""),
+      // 本地瓦片缺失时不拿官方白色图标凑数，留空让宿主显示占位图。
+      imageUrl: modeImageURL(def.id),
     });
   }
   for (const mode of modes) {
@@ -1142,19 +1132,14 @@ async function listeningModeCards() {
       id: "scene:" + mode.id,
       name: mode.name ? tr(mode.name) : tr("Scene radio"),
       description: "",
-      imageUrl: cover() || mode.imageUrl,
+      imageUrl: modeImageURL("scene:" + mode.id),
     });
   }
-  for (let i = 0; i < cards.length; i++) {
-    if (!cards[i].imageUrl && covers.length) {
-      cards[i] = { ...cards[i], imageUrl: covers[i % covers.length] };
-    }
-  }
-  return { cards, covers };
+  return { cards };
 }
 
 export async function stations() {
-  const [{ cards, covers }, radios] = await Promise.all([
+  const [{ cards }, radios] = await Promise.all([
     listeningModeCards(),
     discoveryRadioStations(),
   ]);
@@ -1162,11 +1147,6 @@ export async function stations() {
   for (const radio of radios) {
     if (list.length >= 24) break;
     list.push(radio);
-  }
-  for (let i = 0; i < list.length; i++) {
-    if (!list[i].imageUrl && covers.length) {
-      list[i] = { ...list[i], imageUrl: covers[i % covers.length] };
-    }
   }
   return list;
 }

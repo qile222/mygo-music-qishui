@@ -39,6 +39,10 @@
 - 界面语言跟随 MyGo 设置（English / 简体中文）：所有文案走 `host.t()`，中文在 `locales/zh-CN.json`，
   英文 key 直接内置；插件名和侧栏标题也由宿主按同样的语言文件翻译
 
+听歌模式图片：汽水官方接口只提供透明底白色线性图标，没有照片封面；插件使用 Lucide（ISC）
+语义图标离线生成的深色瓦片，随插件分发在 `assets/modes/`，每张图与模式含义一一对应。
+这些图不是汽水官方素材，也不会拿榜单/歌单封面来冒充某个模式。
+
 评论说明：读取评论匿名即可（登录后优先走签名请求）；当前服务端不返回「我是否点过赞」，
 所以刷新后评论红心会回到未点亮状态，点赞数仍以服务端为准。发表评论需要登录，只在应用内
 输入并提交，插件不做自动发帖或回读。
@@ -81,7 +85,7 @@ high → higher → highest → hi_res → medium；standard → medium → high
 
 ## 安装
 
-1. 把本文件夹（含 `plugin.json`、`index.js` 与 `locales/`）放进：
+1. 把本文件夹（含 `plugin.json`、`index.js`、`locales/` 与 `assets/`）放进：
    `~/Library/Application Support/MyGo Music/plugins/qishui`（或 MyGo Music → Settings → Plugins → + 选择文件夹/zip）。
 2. 重启 MyGo Music，在 Settings → General 的 source 里选择「汽水音乐」。
 3. 首次完整播放时，播放器会提示需要「允许启动程序」：Settings → 汽水音乐 →
@@ -131,10 +135,13 @@ MyGo 的插件数据目录（`plugin-data/qishui/storage.json`），不会写进
 
 - `index.js` / `plugin.json`：插件本体
 - `locales/`：界面文案翻译（`zh-CN.json`；英文是 key，缺失时原样显示）
+- `assets/modes/`：听歌模式本地图片（Lucide 语义图标瓦片 + 图标许可，可由 `tools/build-mode-assets.py` 重建）
 - `docs/`：接口、运行时与播放链路文档
 - `fixtures/`：脱敏的接口响应样本
 - `tools/`：只读探针与无头测试脚手架
 
 ## 许可
 
-MIT
+插件代码 MIT。`assets/modes/` 下的听歌模式图标来自 [Lucide](https://lucide.dev/)，
+按 ISC 许可使用（部分图标源自 Feather，MIT）；完整许可见 `assets/modes/LICENSE-lucide.txt`。
+图标为离线生成的深色瓦片，不含汽水官方素材。
