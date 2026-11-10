@@ -38,6 +38,8 @@ const SEARCH_PAGE = 20;
 const PAGE_SIZE = 50;
 const PLAYLIST_LIMIT = 500;
 const LIKED_LIMIT = 1000;
+const DAILY_LIMIT = 30;
+const DAILY_PAGES = 6;
 const SIGN_IN_DEADLINE = 4 * 60 * 1000;
 
 // ---------- 基础工具 ----------
@@ -212,6 +214,7 @@ let feedModeCache = null;
 let discoverMixCache = null;
 let discoverRadioCache = null;
 let songTabCache = null;
+let dailyCache = null;
 const STATION_CACHE_MS = 5 * 60 * 1000;
 const stationStates = {};
 
@@ -1094,10 +1097,10 @@ async function discoveryRadioStations(force) {
 // 官方「听歌模式」页：私人漫游 + 8 个常用模式 + 探索更多新模式（按账号推荐的电台）。
 // 常用模式官方只给了一个透明底的白色线性图标，MyGo 的浅色卡片上几乎看不见；
 // 这里用榜单曲目的真实封面做底图，另用发现页的电台封面给探索电台，避免和发现页撞图。
-export async function stations() {
-  const [modes, radios, data] = await Promise.all([
+// 全部模式页（More）复用同一份卡片和封面，保证首页与更多页的同一模式外观一致。
+async function listeningModeCards() {
+  const [modes, data] = await Promise.all([
     feedModeRows(),
-    discoveryRadioStations(),
     discoverData().catch(() => null),
   ]);
   const byScene = {};
@@ -1113,18 +1116,49 @@ export async function stations() {
     if (!covers.length) return "";
     return covers[nextCover++ % covers.length];
   };
-  const list = [
-    { ...RECOMMEND_STATION, name: tr(RECOMMEND_STATION.name), description: tr(RECOMMEND_STATION.description), imageUrl: cover() },
+  const cards = [
+    {
+      ...RECOMMEND_STATION,
+      name: tr(RECOMMEND_STATION.name),
+      description: tr(RECOMMEND_STATION.description),
+      imageUrl: cover(),
+    },
   ];
+  const commonScenes = {};
   for (const def of COMMON_MODE_DEFS) {
-    const scene = def.id.indexOf("scene:") === 0 ? byScene[def.id.slice(6)] : null;
-    list.push({
+    const sceneID = def.id.indexOf("scene:") === 0 ? def.id.slice(6) : "";
+    if (sceneID) commonScenes[sceneID] = true;
+    const scene = sceneID ? byScene[sceneID] : null;
+    cards.push({
       id: def.id,
       name: tr(def.name),
       description: tr(def.description),
       imageUrl: cover() || (scene ? scene.imageUrl : ""),
     });
   }
+  for (const mode of modes) {
+    if (commonScenes[mode.id]) continue;
+    cards.push({
+      id: "scene:" + mode.id,
+      name: mode.name ? tr(mode.name) : tr("Scene radio"),
+      description: "",
+      imageUrl: cover() || mode.imageUrl,
+    });
+  }
+  for (let i = 0; i < cards.length; i++) {
+    if (!cards[i].imageUrl && covers.length) {
+      cards[i] = { ...cards[i], imageUrl: covers[i % covers.length] };
+    }
+  }
+  return { cards, covers };
+}
+
+export async function stations() {
+  const [{ cards, covers }, radios] = await Promise.all([
+    listeningModeCards(),
+    discoveryRadioStations(),
+  ]);
+  const list = cards.slice(0, 9);
   for (const radio of radios) {
     if (list.length >= 24) break;
     list.push(radio);
@@ -1276,23 +1310,71 @@ async function discoverMixPlaylists(force) {
   return rows;
 }
 
+async function songTabPage(cursor) {
+  const data = await pc("/luna/pc/feed/song-tab", {
+    body: { cursor: String(cursor || ""), count: 20 },
+    timeoutMs: 20000,
+  });
+  return {
+    tracks: trackList(
+      (data.items || []).map((item) => rawTrackOf(item && item.entity)).filter(Boolean)
+    ),
+    hasMore: data.has_more !== false,
+  };
+}
+
 async function songTabTracks(force) {
   if (!force && songTabCache && Date.now() - songTabCache.at < STATION_CACHE_MS) {
     return songTabCache.tracks;
   }
   let tracks = [];
   try {
-    const data = await pc("/luna/pc/feed/song-tab", {
-      body: { cursor: "", count: 20 },
-      timeoutMs: 20000,
-    });
-    tracks = trackList(
-      (data.items || []).map((item) => rawTrackOf(item && item.entity)).filter(Boolean)
-    );
+    tracks = (await songTabPage("")).tracks;
   } catch (error) {
     tracks = [];
   }
   songTabCache = { at: Date.now(), tracks };
+  return tracks;
+}
+
+// 发现页 For You 的「More」：官方猜你喜欢一次只返回 6 首，按已取条数翻 6 页聚合成
+// 每日推荐。cursor 是已经拿到的条数，不是去重后的条数；同一首歌可能跨页重复，所以
+// 这里按 id 去重，凑满 DAILY_LIMIT 或接口没有更多就停。
+async function dailyTracks(force) {
+  if (!force && dailyCache && Date.now() - dailyCache.at < STATION_CACHE_MS) {
+    return dailyCache.tracks;
+  }
+  const tracks = [];
+  const seen = {};
+  const add = (page) => {
+    for (const track of page.tracks || []) {
+      if (seen[track.id]) continue;
+      seen[track.id] = true;
+      tracks.push(track);
+      if (tracks.length >= DAILY_LIMIT) return;
+    }
+  };
+  try {
+    // 第一页确定每页条数；后面的页互不依赖，按固定 cursor 并行请求，避免点开
+    // 「每日推荐」后串行等 5、6 次网络往返。
+    const first = await songTabPage("");
+    if (!first.tracks.length) {
+      dailyCache = { at: Date.now(), tracks };
+      return tracks;
+    }
+    add(first);
+    if (first.hasMore && tracks.length < DAILY_LIMIT) {
+      const pageSize = first.tracks.length;
+      const pending = [];
+      for (let i = 1; i < DAILY_PAGES; i++) {
+        pending.push(songTabPage(String(pageSize * i)).catch(() => ({ tracks: [] })));
+      }
+      for (const page of await Promise.all(pending)) add(page);
+    }
+  } catch (error) {
+    // 首屏已经有歌时保留；全部失败则让 More 页显示空状态。
+  }
+  dailyCache = { at: Date.now(), tracks };
   return tracks;
 }
 
@@ -1311,6 +1393,7 @@ export async function home() {
       title: tr("Listening Modes"),
       subtitle: tr("Private Radio and common modes. Tap a card to keep the music going."),
       stations: commonStations,
+      morePage: "modes",
     });
   }
   if (exploreStations.length) {
@@ -1331,12 +1414,33 @@ export async function home() {
 
 export async function browse({ page }) {
   const name = String(page || "");
+  if (name === "modes") {
+    const { cards } = await listeningModeCards();
+    const common = cards.slice(0, 9);
+    const more = cards.slice(9);
+    const sections = [];
+    if (common.length) sections.push({ title: tr("Common Modes"), stations: common });
+    if (more.length) sections.push({ title: tr("More Modes"), stations: more });
+    return {
+      title: tr("All Listening Modes"),
+      subtitle: tr("Every listening mode in Qishui Music, in one place"),
+      sections,
+    };
+  }
+  if (name === "daily") {
+    const tracks = await dailyTracks();
+    return {
+      title: tr("Daily Recommendations"),
+      subtitle: tr("Picked for you today"),
+      sections: [{ title: tr("Songs"), tracks, empty: tr("No recommendations right now") }],
+    };
+  }
   if (name === "discover") {
     const [playlists, tracks] = await Promise.all([discoverMixPlaylists(), songTabTracks()]);
     if (playlists.length || tracks.length) {
       const sections = [];
       if (playlists.length) sections.push({ title: tr("Editor's Picks"), playlists });
-      if (tracks.length) sections.push({ title: tr("For You"), tracks });
+      if (tracks.length) sections.push({ title: tr("For You"), tracks, morePage: "daily" });
       return {
         title: tr("Discover"),
         sections,
