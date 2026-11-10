@@ -1055,24 +1055,41 @@ async function discoveryRadioStations(force) {
 }
 
 // 官方「听歌模式」页：私人漫游 + 8 个常用模式 + 探索更多新模式（按账号推荐的电台）。
+// 常用模式官方只给了一个透明底的白色线性图标，MyGo 的浅色卡片上几乎看不见；
+// 这里用发现页编辑精选的真实封面做底图（同一个接口本来就要取），没有封面时才回退图标。
 export async function stations() {
-  const modes = await feedModeRows();
-  const radios = await discoveryRadioStations();
+  const [modes, radios, mixes] = await Promise.all([
+    feedModeRows(),
+    discoveryRadioStations(),
+    discoverMixPlaylists(),
+  ]);
   const byScene = {};
   for (const mode of modes) byScene[mode.id] = mode;
-  const list = [RECOMMEND_STATION];
+  const covers = [];
+  for (const item of mixes) if (item.imageUrl) covers.push(item.imageUrl);
+  let nextCover = 0;
+  const cover = () => {
+    if (!covers.length) return "";
+    return covers[nextCover++ % covers.length];
+  };
+  const list = [{ ...RECOMMEND_STATION, imageUrl: cover() }];
   for (const def of COMMON_MODE_DEFS) {
     const scene = def.id.indexOf("scene:") === 0 ? byScene[def.id.slice(6)] : null;
     list.push({
       id: def.id,
       name: scene ? scene.name : def.name,
       description: def.description,
-      imageUrl: scene ? scene.imageUrl : "",
+      imageUrl: cover() || (scene ? scene.imageUrl : ""),
     });
   }
   for (const radio of radios) {
     if (list.length >= 24) break;
     list.push(radio);
+  }
+  for (let i = 0; i < list.length; i++) {
+    if (!list[i].imageUrl && covers.length) {
+      list[i] = { ...list[i], imageUrl: covers[i % covers.length] };
+    }
   }
   return list;
 }
@@ -1182,8 +1199,12 @@ export async function stationNext({ id }) {
 
 // 首页「推荐」的第一块：官方推荐流是电台，先把私人漫游入口放在最上面。
 // 真正取歌由 stationNext 负责，这里只给一张卡片。
-function personalRadioSection() {
-  return { title: "私人漫游", subtitle: "根据你的口味持续推荐", stations: [RECOMMEND_STATION] };
+function personalRadioSection(imageUrl) {
+  return {
+    title: "私人漫游",
+    subtitle: "根据你的口味持续推荐",
+    stations: [{ ...RECOMMEND_STATION, imageUrl: imageUrl || "" }],
+  };
 }
 
 // ---------- PC 发现页 ----------
@@ -1243,33 +1264,17 @@ async function songTabTracks(force) {
 export async function home() {
   warmSignature();
   const data = await discoverData();
-  const sections = [];
-  if (signedIn()) sections.push(personalRadioSection());
   const playlistBlock = (data.blocks || []).find(
     (item) => item && item.type === "discover_feed_playlist"
   );
   const playlists = playlistBlock ? discoverPlaylists(playlistBlock) : [];
-  if (playlists.length) sections.push({ title: "推荐歌单", playlists: playlists.slice(0, 20) });
-  for (const chart of discoverCharts(data).slice(0, 3)) {
-    sections.push({
-      title: chart.title,
-      subtitle: chart.description || undefined,
-      tracks: chart.tracks.slice(0, 20),
-      morePage: "chart:" + chart.title,
-    });
-  }
+  const sections = [];
   if (signedIn()) {
-    // 最近播放只是首页的可选区块：登录失效或接口出错时宁可少一行，也不要让首页
-    // 整页打不开；账号状态由 App 的 account() 单独提示。
-    try {
-      const recent = await recentTracks();
-      if (recent.length) {
-        sections.push({ title: "最近播放", tracks: recent.slice(0, 12), morePage: "history" });
-      }
-    } catch (error) {
-      // 忽略：首页其余部分仍可用
-    }
+    const cover = playlists.length ? playlists[playlists.length - 1].imageUrl : "";
+    sections.push(personalRadioSection(cover));
   }
+  if (playlists.length) sections.push({ title: "推荐歌单", playlists: playlists.slice(0, 20) });
+  // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
   return { title: "汽水音乐", subtitle: "发现好音乐", sections };
 }
 
