@@ -220,7 +220,7 @@ let feedModeCache = null;
 let discoverMixCache = null;
 let discoverRadioCache = null;
 let dailyCache = null;
-let extraChartCache = null;
+let chartCache = null;
 const STATION_CACHE_MS = 5 * 60 * 1000;
 // 推荐歌单流每次返回 6–12 张且会轮换，host 不支持分页，所以在插件里多取几轮去重。
 const DISCOVER_MIX_ROUNDS = 6;
@@ -266,7 +266,7 @@ function clearSession() {
   discoverMixCache = null;
   discoverRadioCache = null;
   dailyCache = null;
-  extraChartCache = null;
+  chartCache = null;
   likedCache = null;
   host.storage.remove("session");
 }
@@ -959,65 +959,115 @@ function discoverPlaylists(block) {
   return out;
 }
 
-function discoverCharts(data) {
-  const block = ((data && data.blocks) || []).find(
-    (item) => item && item.type === "discover_top_song_list"
-  );
-  const charts = [];
-  for (const inner of (block && block.inner_block) || []) {
-    const list = [];
-    for (const resource of inner.resources || []) {
-      const ranked = resource && resource.entity && resource.entity.ranked_track;
-      if (ranked && ranked.track) list.push(ranked.track);
-    }
-    const tracks = trackList(list);
-    if (tracks.length) {
-      charts.push({ title: inner.title || tr("Charts"), description: inner.desc || "", tracks });
+// 汽水官方只有 4 个歌曲榜（热歌/新歌/欧美/音乐人），没有专辑、歌手或歌单榜。
+// 这里统一走 PC 榜单详情接口：4 个榜并行请求，一次拿到完整曲目、官方封面和描述。
+const CHART_IDS = [
+  "7036274230471712007",
+  "7060812597884869927",
+  "7061475546400005410",
+  "7415959718721494311",
+];
+
+// 榜单封面不是 chart.cover，而是 chart.style.bg_url / title_url，格式和歌单封面相同。
+// 音乐人歌曲榜的 bg_url 只有 urls 没有 uri，不能直接拼，否则会得到 CDN 根地址。
+function chartCover(chart, tracks) {
+  const style = (chart && chart.style) || {};
+  for (const asset of [style.bg_url, style.title_url]) {
+    if (asset && (asset.uri || asset.url || asset.uri_url)) {
+      const url = coverURL(asset, 640);
+      if (url) return url;
     }
   }
-  return charts;
+  const first = tracks && tracks[0];
+  return (first && first.album && first.album.imageUrl) || "";
 }
 
-// 汽水还有第 4 个官方榜「音乐人歌曲榜」，它不在 APP 发现页的 3 个榜单块里，
-// 只能用 PC 榜单详情接口按 chart_id 取。接口匿名可用，字段是 chart.track_ranks[].track。
-// 只补这一个榜，避免 Charts 页为了 3 个已有榜单再发 3 次重复请求。
-const EXTRA_CHART_IDS = ["7415959718721494311"];
-async function extraCharts(force) {
-  if (!force && extraChartCache && Date.now() - extraChartCache.at < STATION_CACHE_MS) {
-    return extraChartCache.rows;
+async function chartDetail(id) {
+  const data = await pc("/luna/pc/charts/" + encodeURIComponent(id), { timeoutMs: 20000 });
+  const chart = data && data.chart;
+  if (!chart) return null;
+  const tracks = trackList(
+    (chart.track_ranks || []).map((row) => row && row.track).filter(Boolean)
+  );
+  if (!tracks.length) return null;
+  const style = chart.style || {};
+  return {
+    id: String(chart.id || id),
+    title: chart.title || tr("Charts"),
+    description: style.desc || chart.desc || "",
+    cover: chartCover(chart, tracks),
+    trackCount: Number(chart.count_tracks) || tracks.length,
+    tracks,
+  };
+}
+
+async function chartsData(force) {
+  if (!force && chartCache && Date.now() - chartCache.at < STATION_CACHE_MS) {
+    return chartCache.rows;
   }
   const rows = (
     await Promise.all(
-      EXTRA_CHART_IDS.map(async (id) => {
+      CHART_IDS.map(async (id) => {
         try {
-          const data = await pc("/luna/pc/charts/" + encodeURIComponent(id), { timeoutMs: 20000 });
-          const chart = data && data.chart;
-          if (!chart) return null;
-          const tracks = trackList(
-            (chart.track_ranks || []).map((row) => row && row.track).filter(Boolean)
-          );
-          if (!tracks.length) return null;
-          return {
-            title: chart.title || tr("Charts"),
-            description: chart.desc || "",
-            tracks,
-          };
+          return await chartDetail(id);
         } catch (error) {
           return null;
         }
       })
     )
   ).filter(Boolean);
-  if (rows.length) extraChartCache = { at: Date.now(), rows };
+  if (rows.length) chartCache = { at: Date.now(), rows };
   return rows;
 }
 
-async function chartsData(force) {
-  const [data, extra] = await Promise.all([
-    discoverData(force).catch(() => null),
-    extraCharts(force).catch(() => []),
-  ]);
-  return [...(data ? discoverCharts(data) : []), ...extra];
+function chartCards(charts) {
+  return charts.map((chart) => ({
+    id: "chart:" + chart.id,
+    name: chart.title,
+    imageUrl: chart.cover,
+    description: chart.description,
+    trackCount: chart.trackCount,
+  }));
+}
+
+// 汽水没有专辑榜/歌手榜。为了让 Charts 不只有歌曲列表，用 4 个官方榜的上榜曲目
+// 聚合出「上榜专辑」「上榜歌手」：按上榜曲目数排序，同分时看最好名次。只做导航聚合，
+// 不冒充官方榜单，所以卡片区块会明确写「根据本周官方榜单聚合」。
+function topAlbumsFromCharts(charts, limit) {
+  const map = new Map();
+  for (const chart of charts) {
+    (chart.tracks || []).forEach((track, index) => {
+      const album = track.album;
+      if (!album || !album.id) return;
+      const hit = map.get(album.id) || { album, count: 0, best: index + 1 };
+      hit.count += 1;
+      if (index + 1 < hit.best) hit.best = index + 1;
+      map.set(album.id, hit);
+    });
+  }
+  return [...map.values()]
+    .sort((a, b) => b.count - a.count || a.best - b.best || String(a.album.name).localeCompare(String(b.album.name)))
+    .slice(0, limit)
+    .map((hit) => hit.album);
+}
+
+function topArtistsFromCharts(charts, limit) {
+  const map = new Map();
+  for (const chart of charts) {
+    (chart.tracks || []).forEach((track, index) => {
+      for (const artist of track.artists || []) {
+        if (!artist || !artist.id) continue;
+        const hit = map.get(artist.id) || { artist, count: 0, best: index + 1 };
+        hit.count += 1;
+        if (index + 1 < hit.best) hit.best = index + 1;
+        map.set(artist.id, hit);
+      }
+    });
+  }
+  return [...map.values()]
+    .sort((a, b) => b.count - a.count || a.best - b.best || String(a.artist.name).localeCompare(String(b.artist.name)))
+    .slice(0, limit)
+    .map((hit) => hit.artist);
 }
 
 async function discoverData(force) {
@@ -1676,18 +1726,35 @@ export async function browse({ page }) {
   }
   if (name === "charts") {
     const charts = await chartsData();
+    const sections = [];
+    const cards = chartCards(charts);
+    if (cards.length) sections.push({ playlists: cards });
+    const albums = topAlbumsFromCharts(charts, 20);
+    if (albums.length) {
+      sections.push({
+        title: tr("Top Albums"),
+        subtitle: tr("Aggregated from this week's official charts"),
+        albums,
+      });
+    }
+    const artists = topArtistsFromCharts(charts, 20);
+    if (artists.length) {
+      sections.push({
+        title: tr("Top Artists"),
+        subtitle: tr("Aggregated from this week's official charts"),
+        artists,
+      });
+    }
+    if (!sections.length) sections.push({ title: tr("Charts"), empty: tr("No such chart") });
     return {
       title: tr("Charts"),
-      sections: charts.map((chart) => ({
-        title: chart.title,
-        subtitle: chart.description || undefined,
-        tracks: chart.tracks,
-      })),
+      subtitle: tr("Qishui Music · Live charts"),
+      sections,
     };
   }
   if (name.startsWith("chart:")) {
     const wanted = name.slice("chart:".length);
-    const chart = (await chartsData()).find((item) => item.title === wanted);
+    const chart = (await chartsData()).find((item) => item.id === wanted || item.title === wanted);
     if (!chart) throw fail("unsupported", tr("No such chart"));
     return {
       title: chart.title,
@@ -1881,7 +1948,7 @@ async function finishSignIn(jar, startedEpoch) {
   discoverMixCache = null;
   discoverRadioCache = null;
   dailyCache = null;
-  extraChartCache = null;
+  chartCache = null;
   likedCache = null;
   persistSession();
   host.signInPrompt({ text: tr("Signed in successfully") });
@@ -2099,6 +2166,23 @@ async function loadPlaylist(id) {
 }
 
 export async function playlist({ id }) {
+  const rawID = id === undefined || id === null ? "" : String(id);
+  if (rawID.startsWith("chart:")) {
+    const chartID = rawID.slice("chart:".length);
+    const chart = (await chartsData()).find((item) => item.id === chartID);
+    if (!chart) throw fail("unavailable", tr("No such chart"));
+    return {
+      id: rawID,
+      name: chart.title,
+      imageUrl: chart.cover,
+      description: chart.description,
+      trackCount: Math.max(chart.trackCount, chart.tracks.length),
+      mine: false,
+      fixed: true,
+      saved: false,
+      tracks: chart.tracks,
+    };
+  }
   const playlistID = asID(id);
   const loaded = await loadPlaylist(playlistID);
   if (!loaded.raw) throw new Error(tr("Couldn't find this playlist"));

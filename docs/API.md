@@ -154,7 +154,7 @@
 - 注意 resource_id 与 entity.playlist.id / entity.ranked_track.track.id 相同；以 entity 为准。
 - 榜单可能不满 50 条（新歌榜实测 43–45 条），UI 不要写死 50。
 
-### 1.1.1 PC 榜单详情（补第 4 个官方榜）✅
+### 1.1.1 PC 榜单详情（4 个官方榜统一入口）✅
 
     GET https://api.qishui.com/luna/pc/charts/{chart_id}?aid=386088&device_platform=pc&version_code=30020100
     User-Agent: LunaPC/3.0.0(290101097)
@@ -164,7 +164,13 @@
 
     chart = {
       id, count_tracks, period, release_time, title,
-      track_ranks: [{ rank, track }]   // track 是完整 track 实体
+      track_ranks: [{ rank, track }],   // track 是完整 track 实体
+      style: {
+        desc,
+        bg_url:      {uri, urls, template_prefix},  // 官方榜单卡片封面
+        title_url:   {uri, urls, template_prefix},  // 官方榜单标题图
+        cover_gradient_effect_color
+      }
     }
 
 实测 4 个 chart_id：
@@ -177,7 +183,9 @@
 | 7415959718721494311 | 音乐人歌曲榜 | 27 |
 
 - 汽水没有公开的「歌单收藏榜 / 歌单榜」接口，官方只有这 4 个歌曲榜；插件不要把推荐歌单伪装成收藏榜。
-- 前 3 个榜从 APP discover 块已经能拿到；插件只为第 4 个榜请求这个接口，避免重复请求。
+- Charts 页现在统一并行请求 4 个 PC 榜单（实测约 0.3 s），因为需要 `chart_id` 和 `style.bg_url` 官方封面；APP discover 的榜单块仍保留作兼容/首页数据，但不再用于 Charts。
+- 插件把 4 个榜渲染成 `Section.playlists` 卡片（id = `chart:<chart_id>`，封面取 `style.bg_url`，没有 `uri` 时回退 `style.title_url` 或榜首专辑封面），`playlist({id})` 识别 `chart:` 前缀返回完整榜单。
+- 「上榜专辑」「上榜歌手」不是官方榜：插件按 4 个榜里每个专辑/艺人的上榜曲目数（同分看最好名次）各取 20 个，作为导航聚合区块，标题/副标题明确标注「根据本周官方榜单聚合」。
 
 ### 1.2 轻量歌单流（可选，适合首页次屏）✅
 
@@ -753,8 +761,8 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | 数据 | 建议 TTL | 说明 |
 | --- | --- | --- |
 | 首页 discover | 5–10 min | 歌单推荐轮换；榜单 30–60 min 可单独缓存 |
-| 榜单（从 discover 提取） | 30–60 min | 相对稳定，每周四更新 |
-| 音乐人歌曲榜（PC charts） | 30–60 min | 第 4 个官方榜，独立接口 |
+| 榜单（4 个 PC charts） | 5 min | 每周四更新，但插件与推荐共用短缓存，避免切页重拉 |
+| 上榜专辑 / 上榜歌手 | 5 min | 由榜单曲目聚合，不单独请求接口 |
 | 搜索 results | 5 min | 按 端点+q 做 key；翻页结果可缓存 5 min |
 | 搜索联想 sug | 10 min | 按前缀 |
 | track / album / artist 元数据 | 1–24 h | 按 id |
