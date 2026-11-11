@@ -36,6 +36,12 @@ const PASSPORT_PARAMS = {
 };
 const SEARCH_PAGE = 20;
 const PAGE_SIZE = 50;
+const ARTIST_TRACK_PAGE_SIZE = 200;
+const ARTIST_TRACK_PAGES = 10;
+const ARTIST_TRACK_LIMIT = 1000;
+const ARTIST_ALBUM_PAGE_SIZE = 100;
+const ARTIST_ALBUM_PAGES = 10;
+const ARTIST_ALBUM_LIMIT = 1000;
 const PLAYLIST_LIMIT = 500;
 const LIKED_LIMIT = 1000;
 const DAILY_LIMIT = 30;
@@ -1651,9 +1657,7 @@ export async function browse({ page }) {
       discoveryRadioStations().catch(() => []),
     ]);
     const sections = [];
-    if (tracks.length) {
-      sections.push({ title: tr("For You"), tracks, morePage: "daily" });
-    }
+    // 电台在前，猜你喜欢在后：发现页先给「场景/风格」入口，再给个性化歌曲。
     if (radios.length) {
       sections.push({
         title: tr("Explore Radio"),
@@ -1661,6 +1665,9 @@ export async function browse({ page }) {
         stations: radios.slice(0, 15),
         morePage: "radio",
       });
+    }
+    if (tracks.length) {
+      sections.push({ title: tr("For You"), tracks, morePage: "daily" });
     }
     return {
       title: tr("Discover"),
@@ -1948,23 +1955,57 @@ export async function artist({ id }) {
     }
   };
   push(data.hot_tracks);
-  const first = await pc("/luna/pc/artists/" + artistID + "/tracks", {
-    params: { cursor: "0", count: String(PAGE_SIZE) },
-  });
-  push(first.tracks);
-  const next = Number(first.next_cursor);
-  if (first.has_more && Number.isSafeInteger(next) && next > 0 && tracks.length < 100) {
-    const second = await pc("/luna/pc/artists/" + artistID + "/tracks", {
-      params: { cursor: String(next), count: String(PAGE_SIZE) },
-    });
-    push(second.tracks);
+  // 艺人页的歌曲也是全量：服务端现在支持 count=200，热门曲 + 分页去重后返回全部曲目。
+  try {
+    let trackCursor = "0";
+    for (let page = 0; page < ARTIST_TRACK_PAGES && tracks.length < ARTIST_TRACK_LIMIT; page += 1) {
+      const trackPage = await pc("/luna/pc/artists/" + artistID + "/tracks", {
+        params: { cursor: trackCursor, count: String(ARTIST_TRACK_PAGE_SIZE) },
+        timeoutMs: 20000,
+      });
+      push(trackPage.tracks);
+      if (tracks.length >= ARTIST_TRACK_LIMIT) break;
+      // has_more 有时缺失或不可靠，只按 next_cursor 是否前进判断。
+      const next = trackPage.next_cursor;
+      if (next === undefined || next === null || String(next) === trackCursor) break;
+      trackCursor = String(next);
+    }
+  } catch (error) {
+    // 曲目接口失败时保留已经拿到的热门曲目。
   }
-  const albums = (Array.isArray(data.hot_albums) ? data.hot_albums : [])
-    .map((raw) => toAlbum(raw))
-    .filter((item) => item && item.id);
+  const albums = [];
+  const albumSeen = new Set();
+  const pushAlbums = (list) => {
+    for (const raw of Array.isArray(list) ? list : []) {
+      const item = toAlbum(raw);
+      if (!item || !item.id || albumSeen.has(item.id)) continue;
+      albumSeen.add(item.id);
+      albums.push(item);
+    }
+  };
+  // 详情里的 hot_albums 只有 10 张（而且新版接口可能不再返回）；
+  // 艺人页要的是完整专辑，宿主又不支持分页，所以这里一次多拉几页。
+  pushAlbums(data.hot_albums);
+  try {
+    let cursor = "0";
+    for (let page = 0; page < ARTIST_ALBUM_PAGES && albums.length < ARTIST_ALBUM_LIMIT; page += 1) {
+      const albumPage = await pc("/luna/pc/artists/" + artistID + "/albums", {
+        params: { cursor: cursor, count: String(ARTIST_ALBUM_PAGE_SIZE) },
+        timeoutMs: 20000,
+      });
+      pushAlbums(albumPage.albums);
+      if (albums.length >= ARTIST_ALBUM_LIMIT) break;
+      // 同上：专辑接口常见 has_more 缺失但 next_cursor 仍有效，不能因此只取第一页。
+      const next = albumPage.next_cursor;
+      if (next === undefined || next === null || String(next) === cursor) break;
+      cursor = String(next);
+    }
+  } catch (error) {
+    // 专辑接口失败时仍返回艺人和热门曲目，不要整页报错。
+  }
   const artist = toArtist(info);
   artist.following = following.has(artistID);
-  return { artist: artist, tracks: tracks.slice(0, 100), albums: albums.slice(0, 30) };
+  return { artist: artist, tracks: tracks.slice(0, ARTIST_TRACK_LIMIT), albums: albums };
 }
 
 async function myPlaylists() {
