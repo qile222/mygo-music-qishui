@@ -45,7 +45,7 @@
 - 官方签名进程必须常驻复用（stdin/stdout 逐行协议），不得每次请求重新 spawn；App 退出时
   stdin 关闭、进程随之结束。`played` 只做「最近播放」上报，失败不影响播放。
 - 听歌模式/私人漫游（`stations` / `stationNext`）只用 PC 侧公开接口（`/luna/pc/feed/mode`、`/luna/pc/discover`、`/luna/pc/feed/song-tab`、`/luna/pc/feed/radio/tracks`），不要要求签名或 spawn，Windows/Linux 也应能取到元数据；`stationNext` 必须按站维护 `count/played/seen/cursor`，对返回曲目去重、`played` 只留最后 30 条，`has_more:false` 或 `next_cursor` 缺失时置 done。探索电台必须区分歌手电台和曲风电台：`style.type===6` 是歌手电台（`flow_type=1`），否则是曲风/类型电台（`flow_type=2`）；`/luna/pc/feed/radio/tracks` 必须带 `flow_type`，否则服务端返回通用推荐流，会出现点 Jessie J 播别人歌的问题。
-- `home()` 与 `browse({page:"discover"})` 不得复用同一份推荐数据：首页放听歌模式（`stations()`，前 9 个为私人漫游+常用模式、其余为探索电台）+ `/luna/discover` 的推荐歌单，不要再放榜单/最近播放（侧栏有独立入口）；发现页用 `/luna/pc/discover/mix` 的编辑精选（多轮请求去重，插件端一次多取，宿主无分页）+ `/luna/pc/feed/song-tab` 的猜你喜欢，失败才回退旧推荐歌单。听歌模式已并入首页，plugin.json 不再注册 `stations` 导航。
+- `home()` 与 `browse({page:"discover"})` 不得复用同一份推荐数据：首页放听歌模式（`stations()`，前 9 个为私人漫游+常用模式、其余为探索电台）+ `/luna/discover` 的推荐歌单，不要再放榜单/最近播放（侧栏有独立入口）；发现页只放 `/luna/pc/feed/song-tab` 的猜你喜欢 + 探索电台，不再放编辑精选或榜单。榜单统一在 `browse({page:"charts"})`：热歌榜/新歌榜/欧美榜从 `/luna/discover` 的 top song list 取，第 4 个「音乐人歌曲榜」走 PC `/luna/pc/charts/7415959718721494311`，四张榜都要完整曲目。听歌模式已并入首页，plugin.json 不再注册 `stations` 导航。
 - 音质映射固定为：MyGo `standard`→官方 medium、`high`→higher、`lossless`→lossless，
   缺档按 `QUALITY_ORDER` 降级；播放缓存条目必须带 `request` 字段，不同音质不能互相命中。
 - 插件 id 是 `qishui`，`plugin.json` 的 `name` 为英文 key `Qishui Music`（中文 locale 译作「汽水音乐」）；数据目录为 `plugin-data/qishui`。

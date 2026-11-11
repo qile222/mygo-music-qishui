@@ -133,7 +133,7 @@
         inner_block_id = 榜单 id
         resources[50] {resource_id, type:"ranked_track", entity.ranked_track{rank{rank_delta,rank_type,track_id}, track{完整 track}}}
 
-实测三个榜单：热歌榜 7036274230471712007（50 条）、新歌榜 7060812597884869927（实测 45 条）、欧美榜 7061475546400005410（50 条）。共约 145 首，其中 87 首 only_vip_playable。
+实测三个榜单：热歌榜 7036274230471712007（50 条）、新歌榜 7060812597884869927（实测 43–45 条）、欧美榜 7061475546400005410（50 条）。共约 143–145 首，其中 87 首 only_vip_playable。
 
 解析要点：
 
@@ -149,10 +149,35 @@
         tracks: (ib.resources || []).map(r => r.entity?.ranked_track?.track).filter(Boolean),
       })) || [];
 
-- **没有独立的榜单接口**：榜单数据从首页 blocks 取即可（如需刷新，重新请求 discover）。
+- APP 首页的榜单块只内嵌 3 个榜单；第 4 个「音乐人歌曲榜」没有出现在 discover 块里，需要单独的 PC 榜单详情接口（见 §1.1.1）。
 - 榜单曲目是完整 track 实体（同 §3/§7 字段），可直接渲染、播放（播放仍走 seo_track）。
 - 注意 resource_id 与 entity.playlist.id / entity.ranked_track.track.id 相同；以 entity 为准。
-- 榜单可能不满 50 条（新歌榜 45 条），UI 不要写死 50。
+- 榜单可能不满 50 条（新歌榜实测 43–45 条），UI 不要写死 50。
+
+### 1.1.1 PC 榜单详情（补第 4 个官方榜）✅
+
+    GET https://api.qishui.com/luna/pc/charts/{chart_id}?aid=386088&device_platform=pc&version_code=30020100
+    User-Agent: LunaPC/3.0.0(290101097)
+    （匿名可用，不需要 Cookie）
+
+响应顶层：`status_info`、`chart`（无 `status_code`）。
+
+    chart = {
+      id, count_tracks, period, release_time, title,
+      track_ranks: [{ rank, track }]   // track 是完整 track 实体
+    }
+
+实测 4 个 chart_id：
+
+| chart_id | title | 实测条数 |
+| --- | --- | --- |
+| 7036274230471712007 | 热歌榜 | 50 |
+| 7060812597884869927 | 新歌榜 | 43–45 |
+| 7061475546400005410 | 欧美榜 | 50 |
+| 7415959718721494311 | 音乐人歌曲榜 | 27 |
+
+- 汽水没有公开的「歌单收藏榜 / 歌单榜」接口，官方只有这 4 个歌曲榜；插件不要把推荐歌单伪装成收藏榜。
+- 前 3 个榜从 APP discover 块已经能拿到；插件只为第 4 个榜请求这个接口，避免重复请求。
 
 ### 1.2 轻量歌单流（可选，适合首页次屏）✅
 
@@ -728,6 +753,7 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | --- | --- | --- |
 | 首页 discover | 5–10 min | 歌单推荐轮换；榜单 30–60 min 可单独缓存 |
 | 榜单（从 discover 提取） | 30–60 min | 相对稳定，每周四更新 |
+| 音乐人歌曲榜（PC charts） | 30–60 min | 第 4 个官方榜，独立接口 |
 | 搜索 results | 5 min | 按 端点+q 做 key；翻页结果可缓存 5 min |
 | 搜索联想 sug | 10 min | 按前缀 |
 | track / album / artist 元数据 | 1–24 h | 按 id |
@@ -908,7 +934,7 @@ version_code 30070000；`X-SS-STUB` = body JSON 的大写 MD5）。Cookie 要用
 | playlist（公开） | 7031081053599074335 | 22 首可播 / 25 槽位（分页坑样本） |
 | playlist（喜欢） | <liked-playlist-id> | type=1, is_private=true；需 Cookie+aid（真实 ID 属于账号数据，不保留） |
 | playlist（抖音收藏） | <douyin-playlist-id> | type=4（真实 ID 属于账号数据，不保留） |
-| 榜单 | 7036274230471712007 / 7060812597884869927 / 7061475546400005410 | 热歌榜 / 新歌榜 / 欧美榜 |
+| 榜单 | 7036274230471712007 / 7060812597884869927 / 7061475546400005410 / 7415959718721494311 | 热歌榜 / 新歌榜 / 欧美榜 / 音乐人歌曲榜 |
 | 电台 | 7408841207004184603 | 热情布鲁斯 |
 
 ---

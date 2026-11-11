@@ -214,6 +214,7 @@ let feedModeCache = null;
 let discoverMixCache = null;
 let discoverRadioCache = null;
 let dailyCache = null;
+let extraChartCache = null;
 const STATION_CACHE_MS = 5 * 60 * 1000;
 // 推荐歌单流每次返回 6–12 张且会轮换，host 不支持分页，所以在插件里多取几轮去重。
 const DISCOVER_MIX_ROUNDS = 6;
@@ -259,6 +260,7 @@ function clearSession() {
   discoverMixCache = null;
   discoverRadioCache = null;
   dailyCache = null;
+  extraChartCache = null;
   likedCache = null;
   host.storage.remove("session");
 }
@@ -970,6 +972,48 @@ function discoverCharts(data) {
   return charts;
 }
 
+// 汽水还有第 4 个官方榜「音乐人歌曲榜」，它不在 APP 发现页的 3 个榜单块里，
+// 只能用 PC 榜单详情接口按 chart_id 取。接口匿名可用，字段是 chart.track_ranks[].track。
+// 只补这一个榜，避免 Charts 页为了 3 个已有榜单再发 3 次重复请求。
+const EXTRA_CHART_IDS = ["7415959718721494311"];
+async function extraCharts(force) {
+  if (!force && extraChartCache && Date.now() - extraChartCache.at < STATION_CACHE_MS) {
+    return extraChartCache.rows;
+  }
+  const rows = (
+    await Promise.all(
+      EXTRA_CHART_IDS.map(async (id) => {
+        try {
+          const data = await pc("/luna/pc/charts/" + encodeURIComponent(id), { timeoutMs: 20000 });
+          const chart = data && data.chart;
+          if (!chart) return null;
+          const tracks = trackList(
+            (chart.track_ranks || []).map((row) => row && row.track).filter(Boolean)
+          );
+          if (!tracks.length) return null;
+          return {
+            title: chart.title || tr("Charts"),
+            description: chart.desc || "",
+            tracks,
+          };
+        } catch (error) {
+          return null;
+        }
+      })
+    )
+  ).filter(Boolean);
+  if (rows.length) extraChartCache = { at: Date.now(), rows };
+  return rows;
+}
+
+async function chartsData(force) {
+  const [data, extra] = await Promise.all([
+    discoverData(force).catch(() => null),
+    extraCharts(force).catch(() => []),
+  ]);
+  return [...(data ? discoverCharts(data) : []), ...extra];
+}
+
 async function discoverData(force) {
   if (!force && discoverCache && Date.now() - discoverCache.at < 180000) {
     return discoverCache.data;
@@ -1600,32 +1644,15 @@ export async function browse({ page }) {
     };
   }
   if (name === "discover") {
-    // 发现页不再只有「编辑精选 + 6 首猜你喜欢」两行：
-    // 编辑精选用 APP 发现页 + PC 编辑精选合并去重后的完整推荐（15–18 张）；
-    // 猜你喜欢直接取「每日推荐」聚合成 20–30 首；再补 3 个榜单各前 10 首和电台。
-    // 这些都是汽水官方现成数据，不额外生成推荐。
-    const [playlists, tracks, data, radios] = await Promise.all([
-      recommendedPlaylists().catch(() => []),
+    // 推荐歌单只保留在首页，榜单只保留在 Charts 页；发现页聚焦「猜你喜欢 + 电台」，
+    // 不再放 Editor's Picks 和热歌榜/新歌榜/欧美榜，避免三个入口互相重复。
+    const [tracks, radios] = await Promise.all([
       dailyTracks().catch(() => []),
-      discoverData().catch(() => null),
       discoveryRadioStations().catch(() => []),
     ]);
-    const charts = data ? discoverCharts(data).slice(0, 3) : [];
     const sections = [];
-    if (playlists.length) {
-      sections.push({ title: tr("Editor's Picks"), playlists, morePage: "playlists" });
-    }
     if (tracks.length) {
       sections.push({ title: tr("For You"), tracks, morePage: "daily" });
-    }
-    for (const chart of charts) {
-      if (!chart.tracks.length) continue;
-      sections.push({
-        title: chart.title,
-        subtitle: chart.description || undefined,
-        tracks: chart.tracks.slice(0, 10),
-        morePage: "chart:" + chart.title,
-      });
     }
     if (radios.length) {
       sections.push({
@@ -1641,7 +1668,7 @@ export async function browse({ page }) {
     };
   }
   if (name === "charts") {
-    const charts = discoverCharts(await discoverData());
+    const charts = await chartsData();
     return {
       title: tr("Charts"),
       sections: charts.map((chart) => ({
@@ -1653,7 +1680,7 @@ export async function browse({ page }) {
   }
   if (name.startsWith("chart:")) {
     const wanted = name.slice("chart:".length);
-    const chart = discoverCharts(await discoverData()).find((item) => item.title === wanted);
+    const chart = (await chartsData()).find((item) => item.title === wanted);
     if (!chart) throw fail("unsupported", tr("No such chart"));
     return {
       title: chart.title,
@@ -1847,6 +1874,7 @@ async function finishSignIn(jar, startedEpoch) {
   discoverMixCache = null;
   discoverRadioCache = null;
   dailyCache = null;
+  extraChartCache = null;
   likedCache = null;
   persistSession();
   host.signInPrompt({ text: tr("Signed in successfully") });
