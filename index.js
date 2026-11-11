@@ -1466,16 +1466,14 @@ async function dailyTracks(force) {
 
 export async function home() {
   warmSignature();
-  const [{ cards }, radios, data] = await Promise.all([
+  const [{ cards }, data] = await Promise.all([
     listeningModeCards(),
-    discoveryRadioStations().catch(() => []),
     discoverData(),
   ]);
   const sections = [];
   // 只展示有官方图的模式；私人漫游/熟悉/新鲜虽然接口能播，但官方没有返回图标，
   // 放进方形卡片会变成三张空白占位图，所以默认页先不展示。
   const commonModes = cardsWithImage(cards).slice(0, 9);
-  const exploreStations = radios.slice(0, 15);
   if (commonModes.length) {
     sections.push({
       title: tr("Listening Modes"),
@@ -1493,14 +1491,6 @@ export async function home() {
       title: tr("Recommended Playlists"),
       playlists: playlists.slice(0, 20),
       morePage: "playlists",
-    });
-  }
-  if (exploreStations.length) {
-    sections.push({
-      title: tr("Explore Radio"),
-      subtitle: tr("More scenes and styles"),
-      stations: exploreStations,
-      morePage: "radio",
     });
   }
   // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
