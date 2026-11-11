@@ -1586,9 +1586,9 @@ async function dailyTracks(force) {
 
 export async function home() {
   warmSignature();
-  const [{ cards }, data] = await Promise.all([
+  const [{ cards }, playlists] = await Promise.all([
     listeningModeCards(),
-    discoverData(),
+    recommendedPlaylists(),
   ]);
   const sections = [];
   // 只展示有官方图的模式；私人漫游/熟悉/新鲜虽然接口能播，但官方没有返回图标，
@@ -1602,14 +1602,12 @@ export async function home() {
       morePage: "modes",
     });
   }
-  const playlistBlock = (data.blocks || []).find(
-    (item) => item && item.type === "discover_feed_playlist"
-  );
-  const playlists = playlistBlock ? discoverPlaylists(playlistBlock) : [];
+  // 首页只铺前 30 张，避免首页无限拉长；See All 页展示完整列表（APP 首页歌单 +
+  // 多轮 PC 编辑精选/猜你喜欢，按 id 去重）。推荐列表和 See All 共用同一份缓存。
   if (playlists.length) {
     sections.push({
       title: tr("Recommended Playlists"),
-      playlists: playlists.slice(0, 20),
+      playlists: playlists.slice(0, 30),
       morePage: "playlists",
     });
   }
