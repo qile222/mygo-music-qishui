@@ -215,6 +215,9 @@ let discoverMixCache = null;
 let discoverRadioCache = null;
 let dailyCache = null;
 const STATION_CACHE_MS = 5 * 60 * 1000;
+// 推荐歌单流每次返回 6–12 张且会轮换，host 不支持分页，所以在插件里多取几轮去重。
+const DISCOVER_MIX_ROUNDS = 6;
+const DISCOVER_MIX_PARALLEL = 2;
 // 官方 PC 推荐流会带设备首次使用时间；首次请求还要告诉服务端这是首次。
 const FEED_FIRST_USE_KEY = "feed-first-use";
 const stationStates = {};
@@ -1305,11 +1308,28 @@ async function discoverMixPlaylists(force) {
   if (!force && discoverMixCache && Date.now() - discoverMixCache.at < STATION_CACHE_MS) {
     return discoverMixCache.rows;
   }
-  let rows = [];
+  const rows = [];
+  const seen = {};
   try {
-    rows = pcDiscoverPlaylists(await pc("/luna/pc/discover/mix", { body: {} }));
+    for (let round = 0; round < DISCOVER_MIX_ROUNDS; round += DISCOVER_MIX_PARALLEL) {
+      const size = Math.min(DISCOVER_MIX_PARALLEL, DISCOVER_MIX_ROUNDS - round);
+      const pages = await Promise.all(
+        Array.from({ length: size }, () => pc("/luna/pc/discover/mix", { body: {} }).catch(() => null))
+      );
+      let changed = false;
+      for (const data of pages) {
+        for (const item of pcDiscoverPlaylists(data)) {
+          if (!item || !item.id || seen[item.id]) continue;
+          seen[item.id] = true;
+          rows.push(item);
+          changed = true;
+        }
+      }
+      // 这一轮全是重复或请求都失败了，继续多打也没有意义。
+      if (!changed) break;
+    }
   } catch (error) {
-    rows = [];
+    // 保留已拿到的数据，首页/发现页仍然可用。
   }
   discoverMixCache = { at: Date.now(), rows };
   return rows;
