@@ -504,8 +504,8 @@ APP host 等价：POST {APP}/luna/playlist/detail body {playlist_id, cursor, cou
     GET https://api.qishui.com/luna/pc/artists/6807264292040083458/tracks?cursor=0&count=20
 
 - 200，约 61 KB，{status_info, tracks[完整 track], has_more, next_cursor}。
-- **2026-11-11 实测：count 已生效，但有下限 50**——count=10/20/50 都回 50 条，count=100/200 回 100/200 条；cursor 是偏移字符串，next_cursor = cursor + 本页条数。
-- 翻页：用 count=200 按 next_cursor 继续，直到 next_cursor 缺失/等于当前 cursor；has_more 可能缺失或不可靠，不要只依赖它。用 track id 去重。艺人页一次取全（如梁静茹 265 首 / 2 页）。
+- **2026-11-11 实测：count 已生效，但有下限 50**——count=10/20/50 都回 50 条，count=100/200/300/500/1000 均按请求返回；count=1000 时梁静茹 265 首一次回全（670ms）、张学友 887 首一次回全（2006ms），next_cursor 仍给一个值（如 "279"/"914"），但本页不足 1000 条已到底；cursor 是偏移字符串，next_cursor = cursor + 本页条数。
+- 翻页：优先用 count=1000 一次取全；若本页条数等于 1000，再按 next_cursor 继续，直到某页不足 1000 或 next_cursor 缺失/不前进；has_more 可能缺失或不可靠，不要只依赖它。用 track id 去重。插件里曲目和专辑与艺人详情并行请求，常见歌手首屏约 0.7–0.9s。
 - 返回的都是完整 track 实体，可直接播放（seo_track）。
 
 ### 8.3 艺人专辑 ✅（分页不稳，需兜底）
@@ -513,9 +513,9 @@ APP host 等价：POST {APP}/luna/playlist/detail body {playlist_id, cursor, cou
     GET https://api.qishui.com/luna/pc/artists/6807264292040083458/albums?cursor=0&count=20
 
 - 200，约 115 KB，{status_info, albums[], has_more, next_cursor}。
-- 2026-11-11 实测 count=100 时一次回全：梁静茹 32 张、薛之谦 67 张、蔡依林 28 张，均无 has_more；next_cursor 仍会给一个值（如 "191"），但本页不足 100 条已到末尾，无需继续请求。
+- 2026-11-11 实测 count=500 时一次回全：梁静茹 32 张、薛之谦 67 张、蔡依林 28 张、张学友 93 张，均无 has_more；next_cursor 仍会给一个值（如 "191"/"113"），但本页不足 500 条已到末尾，无需继续请求。
 - 旧行为（2026-11-09）每页条数不固定：cursor=0 回 21 条、next_cursor="50"；cursor=21 回 25 条、next=71；cursor=50 回 35 条、next=100；count=50 时回 56 条、next=100。
-- 实现：用 count=100 取一页；若返回条数达到 100 且 next_cursor 前进，再按 next_cursor 翻页，直到 next_cursor 缺失/不前进；**按 album id 去重**。has_more 常见缺失，不能只依赖它。
+- 实现：用 count=500 取一页；若返回条数达到 500 且 next_cursor 前进，再按 next_cursor 翻页，直到某页不足 500 或 next_cursor 缺失/不前进；**按 album id 去重**。has_more 常见缺失，不能只依赖它。
 - 每个 album 是精简实体（id/name/artists/count_tracks/url_cover/release_date 等）。
 
 ---
@@ -730,8 +730,8 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | --- | --- | --- | --- | --- |
 | search/{track,album,artist,playlist} | 固定 20（count 无效） | 偏移字符串 | has_more=false 或 next_cursor 空 | next_cursor 可直接继续 |
 | playlist/detail | count 参数控制（不传=全部） | **原始资源槽位偏移**（非返回条数） | 不传 count 无 has_more；传 count 到末页 has_more 消失 | 优先不传 count |
-| artists/{id}/tracks | count（下限 50；100/200 生效） | 偏移字符串 | has_more 可能缺失/不可靠 | next = cursor + 本页条数，用 count=200、按 next_cursor 翻页 |
-| artists/{id}/albums | count=100 可一次取全（32/67 实测） | 偏移字符串 | has_more 常见缺失 | 用 count=100；按 next_cursor 是否前进判断，按 id 去重 |
+| artists/{id}/tracks | count（下限 50；100–1000 生效） | 偏移字符串 | 本页不足 count 即到底；has_more 可能缺失/不可靠 | 用 count=1000 一次取全；按 next_cursor 翻页并去重 |
+| artists/{id}/albums | count（100–500 生效） | 偏移字符串 | 本页不足 count 即到底；has_more 常见缺失 | 用 count=500 一次取全；按 next_cursor 是否前进判断，按 id 去重 |
 | me/playlist | count 参数（实测 50） | 偏移 | total_num | 账号歌单少，通常一次够 |
 | me/recently-played-media | count（支持 10/30/50/100/200） | 偏移 | has_more=false 或到 total_num | 上限 500；count=200 实际 198 |
 | comments | count（实测 20） | 偏移 | has_more=false | cursor 字段即下一页偏移 |

@@ -36,10 +36,10 @@ const PASSPORT_PARAMS = {
 };
 const SEARCH_PAGE = 20;
 const PAGE_SIZE = 50;
-const ARTIST_TRACK_PAGE_SIZE = 200;
+const ARTIST_TRACK_PAGE_SIZE = 1000;
 const ARTIST_TRACK_PAGES = 10;
 const ARTIST_TRACK_LIMIT = 1000;
-const ARTIST_ALBUM_PAGE_SIZE = 100;
+const ARTIST_ALBUM_PAGE_SIZE = 500;
 const ARTIST_ALBUM_PAGES = 10;
 const ARTIST_ALBUM_LIMIT = 1000;
 const PLAYLIST_LIMIT = 500;
@@ -1938,13 +1938,59 @@ export async function album({ id }) {
   return { album: item, tracks: trackList(data.tracks) };
 }
 
+// 艺人页没有宿主分页，只能一次拉全；曲目和专辑与艺人详情并行请求，
+// 并把单页拉到 1000/500，常见歌手一次就够，避免串行多页导致首屏慢。
+async function collectArtistTracks(artistID) {
+  const out = [];
+  let cursor = "0";
+  try {
+    for (let page = 0; page < ARTIST_TRACK_PAGES && out.length < ARTIST_TRACK_LIMIT; page += 1) {
+      const data = await pc("/luna/pc/artists/" + artistID + "/tracks", {
+        params: { cursor: cursor, count: String(ARTIST_TRACK_PAGE_SIZE) },
+        timeoutMs: 20000,
+      });
+      const list = Array.isArray(data.tracks) ? data.tracks : [];
+      if (!list.length) break;
+      out.push(...list);
+      if (out.length >= ARTIST_TRACK_LIMIT) break;
+      const next = data.next_cursor;
+      if (next === undefined || next === null || String(next) === cursor) break;
+      // 返回数少于请求数说明已经到底；否则 next_cursor 可能只是最后一个槽位。
+      if (list.length < ARTIST_TRACK_PAGE_SIZE) break;
+      cursor = String(next);
+    }
+  } catch (error) {
+    // 失败时保留已经拿到的页，艺人页仍能显示。
+  }
+  return out;
+}
+
+async function collectArtistAlbums(artistID) {
+  const out = [];
+  let cursor = "0";
+  try {
+    for (let page = 0; page < ARTIST_ALBUM_PAGES && out.length < ARTIST_ALBUM_LIMIT; page += 1) {
+      const data = await pc("/luna/pc/artists/" + artistID + "/albums", {
+        params: { cursor: cursor, count: String(ARTIST_ALBUM_PAGE_SIZE) },
+        timeoutMs: 20000,
+      });
+      const list = Array.isArray(data.albums) ? data.albums : [];
+      if (!list.length) break;
+      out.push(...list);
+      if (out.length >= ARTIST_ALBUM_LIMIT) break;
+      const next = data.next_cursor;
+      if (next === undefined || next === null || String(next) === cursor) break;
+      if (list.length < ARTIST_ALBUM_PAGE_SIZE) break;
+      cursor = String(next);
+    }
+  } catch (error) {
+    // 失败时保留已经拿到的页。
+  }
+  return out;
+}
+
 export async function artist({ id }) {
   const artistID = asID(id);
-  const results = await Promise.all([pc("/luna/pc/artists/" + artistID), followedArtistIDsSafe()]);
-  const data = results[0];
-  const following = results[1];
-  const info = data.artist_info;
-  if (!info) throw new Error(tr("Couldn't find this artist"));
   const tracks = [];
   const seen = new Set();
   const push = (list) => {
@@ -1954,25 +2000,6 @@ export async function artist({ id }) {
       tracks.push(track);
     }
   };
-  push(data.hot_tracks);
-  // 艺人页的歌曲也是全量：服务端现在支持 count=200，热门曲 + 分页去重后返回全部曲目。
-  try {
-    let trackCursor = "0";
-    for (let page = 0; page < ARTIST_TRACK_PAGES && tracks.length < ARTIST_TRACK_LIMIT; page += 1) {
-      const trackPage = await pc("/luna/pc/artists/" + artistID + "/tracks", {
-        params: { cursor: trackCursor, count: String(ARTIST_TRACK_PAGE_SIZE) },
-        timeoutMs: 20000,
-      });
-      push(trackPage.tracks);
-      if (tracks.length >= ARTIST_TRACK_LIMIT) break;
-      // has_more 有时缺失或不可靠，只按 next_cursor 是否前进判断。
-      const next = trackPage.next_cursor;
-      if (next === undefined || next === null || String(next) === trackCursor) break;
-      trackCursor = String(next);
-    }
-  } catch (error) {
-    // 曲目接口失败时保留已经拿到的热门曲目。
-  }
   const albums = [];
   const albumSeen = new Set();
   const pushAlbums = (list) => {
@@ -1983,26 +2010,20 @@ export async function artist({ id }) {
       albums.push(item);
     }
   };
-  // 详情里的 hot_albums 只有 10 张（而且新版接口可能不再返回）；
-  // 艺人页要的是完整专辑，宿主又不支持分页，所以这里一次多拉几页。
-  pushAlbums(data.hot_albums);
-  try {
-    let cursor = "0";
-    for (let page = 0; page < ARTIST_ALBUM_PAGES && albums.length < ARTIST_ALBUM_LIMIT; page += 1) {
-      const albumPage = await pc("/luna/pc/artists/" + artistID + "/albums", {
-        params: { cursor: cursor, count: String(ARTIST_ALBUM_PAGE_SIZE) },
-        timeoutMs: 20000,
-      });
-      pushAlbums(albumPage.albums);
-      if (albums.length >= ARTIST_ALBUM_LIMIT) break;
-      // 同上：专辑接口常见 has_more 缺失但 next_cursor 仍有效，不能因此只取第一页。
-      const next = albumPage.next_cursor;
-      if (next === undefined || next === null || String(next) === cursor) break;
-      cursor = String(next);
-    }
-  } catch (error) {
-    // 专辑接口失败时仍返回艺人和热门曲目，不要整页报错。
-  }
+
+  // 四个请求互不依赖，同时发出：艺人详情、关注列表、全部曲目、全部专辑。
+  const [results, following, rawTracks, rawAlbums] = await Promise.all([
+    pc("/luna/pc/artists/" + artistID),
+    followedArtistIDsSafe(),
+    collectArtistTracks(artistID),
+    collectArtistAlbums(artistID),
+  ]);
+  const info = results.artist_info;
+  if (!info) throw new Error(tr("Couldn't find this artist"));
+  push(results.hot_tracks);
+  push(rawTracks);
+  pushAlbums(results.hot_albums);
+  pushAlbums(rawAlbums);
   const artist = toArtist(info);
   artist.following = following.has(artistID);
   return { artist: artist, tracks: tracks.slice(0, ARTIST_TRACK_LIMIT), albums: albums };
