@@ -3367,24 +3367,45 @@ const BASE64_BIN = "/usr/bin/base64";
 // 快速切歌时，宿主会为上一次选择继续跑完整的 stream()，但它已经把那次播放作废。
 // 如果不取消，旧歌的下载、解密和 base64 落盘会和最后一首抢网络/CPU，导致最后一首
 // 明明已经选中却要排队。这里只保留最新一次播放请求，新的请求会 abort 旧的下载。
-let playbackRun = null;
+//
+// 宿主的 open() 在预取失败后还会用它自己的旧 goroutine 再调用一次 Stream()。如果
+// 这次重试恰好在用户选了下一首之后到达，按调用顺序它会被当成最新请求，反而把真正
+// 正在加载的那首取消掉；宿主随后会把这歌当作失败，自动跳到再下一首。这里记住刚被
+// 取消的曲目：同一首的重试不再取消当前请求，让宿主按 generation 自己丢弃旧结果。
+const PLAYBACK_RETRY_TTL = 10000;
+const playbackRuns = new Set();
+const playbackCanceled = new Map();
 
-function beginPlaybackRun() {
-  if (playbackRun) {
-    try {
-      playbackRun.controller.abort();
-    } catch (error) {
-      // 已经结束的请求不需要处理
+function playbackRunKey(params) {
+  return String(asID(params && params.id)) + "\u0000" + normalizeQuality(params && params.quality);
+}
+
+function beginPlaybackRun(params) {
+  const key = playbackRunKey(params);
+  const at = Date.now();
+  for (const pair of playbackCanceled) {
+    if (at - pair[1] > PLAYBACK_RETRY_TTL) playbackCanceled.delete(pair[0]);
+  }
+  const retry = playbackCanceled.has(key);
+  if (!retry) {
+    for (const run of playbackRuns) {
+      try {
+        run.controller.abort();
+      } catch (error) {
+        // 已经结束的请求不需要处理
+      }
+      playbackCanceled.set(run.key, at);
     }
   }
+  playbackCanceled.delete(key);
   const controller = new AbortController();
-  const run = { controller, signal: controller.signal };
-  playbackRun = run;
+  const run = { controller, signal: controller.signal, key };
+  playbackRuns.add(run);
   return run;
 }
 
 function playbackSuperseded(run) {
-  return !run || run !== playbackRun || run.signal.aborted;
+  return !run || run.signal.aborted;
 }
 
 function assertPlaybackRun(run) {
@@ -3392,7 +3413,7 @@ function assertPlaybackRun(run) {
 }
 
 function finishPlaybackRun(run) {
-  if (playbackRun === run) playbackRun = null;
+  playbackRuns.delete(run);
 }
 
 function playCache() {
@@ -3656,9 +3677,10 @@ async function streamInternal(params, run) {
 }
 
 // 宿主快速切歌时，旧的一次 stream() 仍会在后台跑完；新的请求会取消旧的下载和
-// base64 进程，只让用户最后选中的那首歌继续，避免最后一首排队等待。
+// base64 进程，只让用户最后选中的那首歌继续，避免最后一首排队等待。同一首的
+// 宿主 stale retry 是例外，它不会取消当前请求（见 beginPlaybackRun）。
 export async function stream(params) {
-  const run = beginPlaybackRun();
+  const run = beginPlaybackRun(params);
   try {
     return await streamInternal(params, run);
   } finally {

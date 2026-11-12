@@ -49,7 +49,7 @@ m4a 里，插件在自身进程内解密后交给宿主播放。除了系统 bas
 旧 generation 的结果只是被丢弃，并不会取消插件侧还在进行的下载/解密；同时
 `ahead.go` 会为下一首预取调用 `Stream()`。快速连点时会有多个旧请求同时抢网络和 CPU。
 
-插件用模块级 `playbackRun` + `AbortController` 只保留最新一次播放请求：
+插件用模块级播放请求集合 + `AbortController` 只保留最新一次播放请求：
 
 - 新的 `stream()` 开始时 abort 上一个 run；
 - `fetchBytes()` 监听 abort，立刻中断音频下载；
@@ -57,6 +57,13 @@ m4a 里，插件在自身进程内解密后交给宿主播放。除了系统 bas
 - 旧请求在检查点抛 `fail("unavailable", "Playback request was superseded")`，宿主本来
   就会忽略旧 generation 的返回值；
 - 被取消的旧请求会清理临时文件并跳过缓存写入，磁盘上只留下真正播放过的曲目。
+
+宿主 `player.open` 在预取失败后还会用它自己的旧 goroutine 再调用一次 `Stream()`。
+如果这次重试发生在用户已经选中下一首之后，按调用顺序它会变成“最新”请求，反过来
+取消正在加载的新歌；宿主随后把新歌当失败，开启 `loadFailed` 并自动跳到下一首。
+
+插件记录了最近 10 秒内被取消的曲目 key。同一首的宿主重试到达时不再 abort 当前请求，
+而是让重试与当前请求并存；宿主按 generation 丢弃旧结果，正在加载的新歌不会再被误取消。
 
 ## 红心与最近播放
 
