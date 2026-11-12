@@ -3364,6 +3364,37 @@ const PLAY_CACHE_KEY = "playCache";
 const PLAY_CACHE_LIMIT = 8;
 const BASE64_BIN = "/usr/bin/base64";
 
+// 快速切歌时，宿主会为上一次选择继续跑完整的 stream()，但它已经把那次播放作废。
+// 如果不取消，旧歌的下载、解密和 base64 落盘会和最后一首抢网络/CPU，导致最后一首
+// 明明已经选中却要排队。这里只保留最新一次播放请求，新的请求会 abort 旧的下载。
+let playbackRun = null;
+
+function beginPlaybackRun() {
+  if (playbackRun) {
+    try {
+      playbackRun.controller.abort();
+    } catch (error) {
+      // 已经结束的请求不需要处理
+    }
+  }
+  const controller = new AbortController();
+  const run = { controller, signal: controller.signal };
+  playbackRun = run;
+  return run;
+}
+
+function playbackSuperseded(run) {
+  return !run || run !== playbackRun || run.signal.aborted;
+}
+
+function assertPlaybackRun(run) {
+  if (playbackSuperseded(run)) throw fail("unavailable", tr("Playback request was superseded"));
+}
+
+function finishPlaybackRun(run) {
+  if (playbackRun === run) playbackRun = null;
+}
+
 function playCache() {
   const saved = host.storage.get(PLAY_CACHE_KEY);
   return saved && typeof saved === "object" ? saved : {};
@@ -3377,8 +3408,19 @@ function savePlayCache(cache) {
   }
 }
 
-async function fetchBytes(url, timeoutMs) {
+async function fetchBytes(url, timeoutMs, externalSignal) {
   const controller = new AbortController();
+  const forwardAbort = function () {
+    try {
+      controller.abort();
+    } catch (error) {
+      // 已经 abort
+    }
+  };
+  if (externalSignal) {
+    if (externalSignal.aborted) forwardAbort();
+    else externalSignal.addEventListener("abort", forwardAbort, { once: true });
+  }
   const timer = setTimeout(() => controller.abort(), timeoutMs || 20000);
   try {
     const response = await fetch(url, {
@@ -3389,10 +3431,12 @@ async function fetchBytes(url, timeoutMs) {
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
   } catch (error) {
+    if (externalSignal && externalSignal.aborted) throw fail("unavailable", tr("Playback request was superseded"));
     if (controller.signal.aborted) throw new Error(tr("Audio download timed out. Please try again later."));
     throw error;
   } finally {
     clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener("abort", forwardAbort);
   }
 }
 
@@ -3425,7 +3469,8 @@ function cachedStream(trackID, requested) {
   return null;
 }
 
-async function deliverEncrypted(picked, trackID, requested) {
+async function deliverEncrypted(picked, trackID, requested, run) {
+  assertPlaybackRun(run);
   if (!onMac()) throw fail("setup", platformMessage());
   const meta = picked.video_meta || {};
   const encrypt = picked.encrypt_info || {};
@@ -3453,8 +3498,19 @@ async function deliverEncrypted(picked, trackID, requested) {
     }
     throw fail("unavailable", tr("Failed to start the decoder: ") + message);
   }
+  // 新的播放请求到来时，旧请求的 base64 进程也要立刻停掉，否则还会继续占 CPU/磁盘。
+  const onAbort = function () {
+    try {
+      proc.kill();
+    } catch (error) {
+      // 已经退出了
+    }
+  };
+  if (run) run.signal.addEventListener("abort", onAbort, { once: true });
   try {
-    const encrypted = await fetchBytes(picked.main_url, 20000);
+    assertPlaybackRun(run);
+    const encrypted = await fetchBytes(picked.main_url, 20000, run && run.signal);
+    assertPlaybackRun(run);
     const plain = decryptM4A(encrypted, String(encrypt.spade_a || ""));
     // base64 分块边编边写：每块字节数是 3 的倍数，拼接后仍是合法 base64，
     // 避免一次生成几 MB 的字符串把 Goja 的内存和 GC 拖慢。
@@ -3464,6 +3520,7 @@ async function deliverEncrypted(picked, trackID, requested) {
     }
     proc.closeStdin();
     const code = await proc.wait();
+    assertPlaybackRun(run);
     if (code !== 0) {
       const why = String(proc.errorOutput() || "").trim();
       throw fail("unavailable", tr("Failed to write audio") + " (" + (why || tr("base64 exit code") + " " + code) + ")");
@@ -3502,7 +3559,10 @@ async function deliverEncrypted(picked, trackID, requested) {
     } catch (ignored) {
       // 删不掉下次会覆盖
     }
+    if (playbackSuperseded(run)) throw fail("unavailable", tr("Playback request was superseded"));
     throw error;
+  } finally {
+    if (run) run.signal.removeEventListener("abort", onAbort);
   }
 }
 
@@ -3526,18 +3586,22 @@ async function trackV2(trackID) {
   return data;
 }
 
-export async function stream({ id, quality }) {
+async function streamInternal(params, run) {
+  const { id, quality } = params || {};
   const trackID = asID(id);
   const requested = normalizeQuality(quality);
   const order = QUALITY_ORDER[requested] || QUALITY_ORDER.standard;
   const cached = cachedStream(trackID, requested);
   if (cached) return cached;
+  assertPlaybackRun(run);
   const active = signedIn();
   let fullError = null;
   // 非 macOS 平台没有官方签名模块：跳过 track_v2，直接走匿名网页接口（可播普通曲目）。
   if (active && onMac()) {
     try {
+      assertPlaybackRun(run);
       const full = await trackV2(trackID);
+      assertPlaybackRun(run);
       const info = playbackOf(full);
       if (info.videos.length && !servedPreview(info.track, info.model)) {
         const picked = pickVideo(info.videos, order);
@@ -3545,7 +3609,7 @@ export async function stream({ id, quality }) {
           const encrypt = picked.encrypt_info || {};
           const meta = picked.video_meta || {};
           if (encrypt.spade_a && encrypt.encrypt !== false) {
-            return await deliverEncrypted(picked, trackID, requested);
+            return await deliverEncrypted(picked, trackID, requested, run);
           }
           const url = String(picked.main_url);
           if (allowedAudioHost(url)) {
@@ -3554,10 +3618,13 @@ export async function stream({ id, quality }) {
         }
       }
     } catch (error) {
+      // 这次播放已经被更新的选择取代：直接结束，别再回退到试听接口浪费一次请求。
+      if (playbackSuperseded(run)) throw error;
       if (error && error.code === "signIn") throw error;
       fullError = error;
     }
   }
+  assertPlaybackRun(run);
   // 签名不可用（没装官方客户端 / 没允许启动程序）时，优先把这个原因告诉用户，
   // 而不是笼统的「只剩试听」。
   const finalError = function (error) {
@@ -3565,6 +3632,7 @@ export async function stream({ id, quality }) {
     return error;
   };
   const data = await seoTrack(trackID);
+  assertPlaybackRun(run);
   const info = playbackOf(data);
   if (!info.videos.length) {
     throw finalError(fail("unavailable", tr("Qishui didn't return a playback URL for this song; it may be unavailable or require membership")));
@@ -3585,4 +3653,15 @@ export async function stream({ id, quality }) {
     );
   }
   return streamResult(url, meta.vtype ? String(meta.vtype) : "m4a", meta, meta.quality);
+}
+
+// 宿主快速切歌时，旧的一次 stream() 仍会在后台跑完；新的请求会取消旧的下载和
+// base64 进程，只让用户最后选中的那首歌继续，避免最后一首排队等待。
+export async function stream(params) {
+  const run = beginPlaybackRun();
+  try {
+    return await streamInternal(params, run);
+  } finally {
+    finishPlaybackRun(run);
+  }
 }

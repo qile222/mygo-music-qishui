@@ -43,6 +43,21 @@ m4a 里，插件在自身进程内解密后交给宿主播放。除了系统 bas
    直接返回 `file://`，不再请求 `track_v2`（0 ms）。
 7. 未加密的 `main_url` 直接返回给宿主。
 
+## 快速切歌
+
+宿主播放器在每次切歌时都会启动新的 `stream()` goroutine（`player.go` 的 `open`），
+旧 generation 的结果只是被丢弃，并不会取消插件侧还在进行的下载/解密；同时
+`ahead.go` 会为下一首预取调用 `Stream()`。快速连点时会有多个旧请求同时抢网络和 CPU。
+
+插件用模块级 `playbackRun` + `AbortController` 只保留最新一次播放请求：
+
+- 新的 `stream()` 开始时 abort 上一个 run；
+- `fetchBytes()` 监听 abort，立刻中断音频下载；
+- `base64` 进程监听 abort，立刻 `kill()`，不再继续写盘；
+- 旧请求在检查点抛 `fail("unavailable", "Playback request was superseded")`，宿主本来
+  就会忽略旧 generation 的返回值；
+- 被取消的旧请求会清理临时文件并跳过缓存写入，磁盘上只留下真正播放过的曲目。
+
 ## 红心与最近播放
 
 - 红心：`POST /luna/pc/me/collection/media`（body `{"scene":"","media":[{"id":...,"type":"track"}]}`）
