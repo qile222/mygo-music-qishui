@@ -1145,10 +1145,19 @@ const COMMON_MODE_DEFS = [
 // 预生成 assets/modes/<sceneID>.webp。官方图标本身是透明底白色线稿，MyGo 的浅色卡片
 // 上几乎看不见，所以只做展示层处理：保留官方图形，改成白色并放在每个模式不同颜色的
 // 渐变方卡上（iTunes 风格）。方卡底色只用于展示、由插件生成，不是汽水素材；不重画、
-// 不替换成别的图标。私人漫游和熟悉/新鲜模式官方接口没有返回图标，保留宿主自带的电台
-// 图标作为占位。
+// 不替换成别的图标。私人漫游官方接口没有返回图标，使用插件生成的渐变底 + 中性广播
+// 符号作为占位（不是官方图，也不冒充某个场景）；熟悉/新鲜模式保留宿主电台占位图。
 function modeImageURL(sceneID) {
   const id = String(sceneID === undefined || sceneID === null ? "" : sceneID).trim();
+  if (id === RECOMMEND_STATION.id) {
+    try {
+      const dir = String(host.dir || "").replace(/[\\/]+$/, "");
+      if (!dir) return "";
+      return fileURLFor(dir + "/assets/modes/recommendations.webp");
+    } catch (error) {
+      return "";
+    }
+  }
   if (!/^\d{1,20}$/.test(id)) return "";
   try {
     const dir = String(host.dir || "").replace(/[\\/]+$/, "");
@@ -1286,7 +1295,7 @@ async function listeningModeCards() {
       ...RECOMMEND_STATION,
       name: tr(RECOMMEND_STATION.name),
       description: tr(RECOMMEND_STATION.description),
-      // 官方接口没有返回私人漫游图标，留空让宿主显示电台占位图，不伪造。
+      // 官方接口没有返回私人漫游图标，用插件生成的渐变底 + 中性广播符号，不冒充官方图。
       imageUrl: modeImageURL(RECOMMEND_STATION.id),
     },
   ];

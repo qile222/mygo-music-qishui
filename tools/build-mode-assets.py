@@ -40,6 +40,7 @@ STORAGE = Path.home() / "Library" / "Application Support" / "MyGo Music" / "plug
 # Curated deep gradients so the white official glyph always has contrast. Each
 # scene gets its own pair; adjacent cards on the MyGo grid therefore differ.
 PALETTES: dict[str, tuple[str, str]] = {
+    "recommendations": ("#1E1B4B", "#4338CA"),  # 私人漫游（插件绘制的占位图形）
     "9": ("#0B1E2D", "#1F4E5F"),   # 抖音漫游
     "34": ("#1B4F72", "#2E86C1"),  # 摸鱼
     "33": ("#B45309", "#F59E0B"),  # 驾车
@@ -195,6 +196,25 @@ def palette_for(scene_id: str) -> tuple[tuple[int, int, int], tuple[int, int, in
     return tuple(int(v * 255) for v in top), tuple(int(v * 255) for v in bottom)  # type: ignore[return-value]
 
 
+def private_radio_glyph(size: int = 400) -> Image.Image:
+    """A broadcast mark for Private Radio, the one mode the feed has no icon for.
+
+    This is deliberately a neutral radio symbol, not a redrawn scene glyph or
+    a stand-in cover: the gradient tile behind it is the background the card
+    otherwise lacks.
+    """
+    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+    cx = cy = size // 2
+    radius = 16
+    draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=(255, 255, 255, 255))
+    for arc_radius, width in ((64, 14), (108, 12)):
+        box = [cx - arc_radius, cy - arc_radius, cx + arc_radius, cy + arc_radius]
+        draw.arc(box, start=-45, end=45, fill=(255, 255, 255, 255), width=width)
+        draw.arc(box, start=135, end=225, fill=(255, 255, 255, 255), width=width)
+    return im
+
+
 def make_tile(glyph: Image.Image, scene_id: str, size: int = 400) -> Image.Image:
     bbox = glyph.getchannel("A").getbbox()
     if bbox:
@@ -264,11 +284,18 @@ def main() -> int:
         else:
             make_tile(glyph, scene_id).save(OUT_DIR / f"{scene_id}.webp", "WEBP", quality=92)
         modes[scene_id] = name
+    if not pill_preview:
+        make_tile(private_radio_glyph(), "recommendations").save(
+            OUT_DIR / "recommendations.webp", "WEBP", quality=92
+        )
     manifest = {
         "source": "https://api.qishui.com/luna/pc/feed/mode (official scene-mode url_info icons)",
         "style": "Official Qishui glyph recoloured white and centered on a per-mode iTunes-style color-gradient tile; no redrawn or substituted artwork.",
         "size": 400,
         "modes": modes,
+        "placeholder": {
+            "recommendations": "Private Radio: plugin-drawn broadcast mark on a gradient tile because Qishui's feed has no icon for it; not official artwork."
+        },
     }
     (OUT_DIR / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
