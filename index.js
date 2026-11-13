@@ -1870,6 +1870,7 @@ async function requestQRCode(jar) {
   params.next = "https://api.qishui.com";
   params.need_logo = "false";
   params.need_short_url = "false";
+  params.is_frontier = "true";
   params.is_new_login = "1";
   const url = PC + "/passport/web/get_qrcode/?" + queryString(params);
   return payloadFrom(await fetchText(url, { ua: WEB_UA, jar }));
@@ -1888,6 +1889,40 @@ async function checkQRCode(jar, token) {
   return payloadFrom(await fetchText(url, { ua: WEB_UA, method: "POST", form, jar }));
 }
 
+// 二维码确认后，服务端不会直接把 session cookie 塞进轮询响应，而是给一个
+// redirect_url；必须带着当前 cookie 走一遍这个地址，Set-Cookie 才会下发。
+// 重定向可能是跨域的，fetch 自动跟随时会丢掉 Cookie 头，所以这里手动跟。
+async function completeQRCodeLogin(jar, redirectURL) {
+  if (!redirectURL) return false;
+  let url = String(redirectURL);
+  for (let round = 0; round < 8; round++) {
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "GET",
+        redirect: "manual",
+        headers: {
+          "User-Agent": WEB_UA,
+          Accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+          Cookie: cookieHeader(jar),
+        },
+      });
+    } catch (error) {
+      return false;
+    }
+    acceptCookies(response, jar);
+    if (hasLoginCookie(jar)) return true;
+    const location = response.headers.get("location");
+    if (response.status < 300 || response.status >= 400 || !location) return hasLoginCookie(jar);
+    try {
+      url = new URL(location, url).toString();
+    } catch (error) {
+      return hasLoginCookie(jar);
+    }
+  }
+  return hasLoginCookie(jar);
+}
+
 async function fetchProfile(jar) {
   const data = await pc("/luna/pc/me", { jar });
   const info = data.my_info;
@@ -1897,6 +1932,25 @@ async function fetchProfile(jar) {
     name: info.nickname || info.name || tr("Qishui user"),
     imageUrl: coverURL(info.larger_avatar_url || info.medium_avatar_url || info.avatar_url, 200),
   };
+}
+
+// 扫码登录的轮询细节：官方 SDK 至少每 2 秒查一次，确认后还要等 session
+// cookie 下发；连续查询会触发 error_code=7，需要退避。这里把三种状态都照顾到。
+const SIGN_IN_POLL_MS = 2000;
+const SIGN_IN_CONFIRM_WAIT_MS = 20000;
+const SIGN_IN_RATE_LIMIT_MS = 60000;
+
+function recordSignInDebug(entry) {
+  // Only the state fields, never the token, cookies or QR contents. Kept short
+  // so a stuck sign-in can be diagnosed without growing storage forever.
+  try {
+    const previous = host.storage.get("signInDebug");
+    const entries = Array.isArray(previous) ? previous.slice(-19) : [];
+    entries.push(entry);
+    host.storage.set("signInDebug", entries);
+  } catch (error) {
+    // diagnostics must never break sign-in
+  }
 }
 
 export async function signIn() {
@@ -1914,12 +1968,23 @@ export async function signIn() {
   const token = data.token;
   const qrURL = data.qrcode_index_url;
   if (!token || !qrURL) throw new Error(tr("Qishui didn't return a sign-in QR code. Please try again later."));
-  host.signInPrompt({ qr: qrURL, text: tr("Scan with the Douyin app and confirm sign-in to Qishui Music on your phone") });
+  host.signInPrompt({
+    qr: qrURL,
+    text: tr("Scan with the Douyin app (not the Qishui app) and confirm sign-in on your phone"),
+  });
   const deadline = Date.now() + SIGN_IN_DEADLINE;
   let scanned = false;
+  let confirmedAt = 0;
+  let redirectTried = false;
+  let rateLimitedUntil = 0;
+  let lastDebug = "";
   while (Date.now() < deadline) {
     checkEpoch(startedEpoch);
-    await sleep(1500);
+    if (rateLimitedUntil > Date.now()) {
+      await sleep(Math.min(1000, rateLimitedUntil - Date.now()));
+      continue;
+    }
+    await sleep(SIGN_IN_POLL_MS);
     checkEpoch(startedEpoch);
     let result;
     try {
@@ -1930,9 +1995,31 @@ export async function signIn() {
     }
     const payload = (result && result.data) || {};
     const status = String(payload.status || "").toLowerCase();
+    const errorCode = Number(payload.error_code || 0);
+    const accountFlow = String(payload.account_flow || "").toLowerCase();
+    const debugKey = status + "|" + errorCode + "|" + accountFlow;
+    if (debugKey !== lastDebug) {
+      lastDebug = debugKey;
+      recordSignInDebug({ status, error_code: errorCode, account_flow: accountFlow, at: Date.now() });
+    }
     if (hasLoginCookie(jar)) {
       return await finishSignIn(jar, startedEpoch);
     }
+    if (errorCode === 7) {
+      rateLimitedUntil = Date.now() + SIGN_IN_RATE_LIMIT_MS;
+      host.signInPrompt({
+        qr: qrURL,
+        text: tr("Qishui is rate-limiting sign-in checks. Waiting a moment before trying again…"),
+      });
+      continue;
+    }
+    if (errorCode === 2046 || accountFlow === "verify") {
+      throw new Error(
+        tr("Qishui requires SMS verification for this account. The plugin can't finish that step yet; sign in once in the official app or use an account without extra verification."),
+      );
+    }
+    // 汽水（抖音 passport）的数值状态：1 未扫码、2 已扫码待确认、
+    // 3 已确认、4 已取消、5 已过期。字符串状态是同一套语义。
     if (status === "scanned" || status === "scan" || status === "2") {
       if (!scanned) {
         scanned = true;
@@ -1940,18 +2027,33 @@ export async function signIn() {
       }
       continue;
     }
-    if (status === "confirmed" || status === "confirm" || status === "success" || status === "1") {
-      return await finishSignIn(jar, startedEpoch);
+    if (status === "confirmed" || status === "confirm" || status === "success" || status === "3") {
+      if (!confirmedAt) {
+        confirmedAt = Date.now();
+        host.signInPrompt({ qr: qrURL, text: tr("Confirmed. Finishing sign-in…") });
+      }
+      if (!redirectTried && payload.redirect_url) {
+        redirectTried = true;
+        await completeQRCodeLogin(jar, payload.redirect_url);
+        checkEpoch(startedEpoch);
+        if (hasLoginCookie(jar)) return await finishSignIn(jar, startedEpoch);
+      }
+      if (Date.now() - confirmedAt > SIGN_IN_CONFIRM_WAIT_MS) {
+        throw new Error(tr("Qishui confirmed the scan but didn't send a session. Please sign in again."));
+      }
+      continue;
+    }
+    if (status === "expired" || status === "expire" || status === "5") {
+      throw new Error(tr("The QR code expired. Please sign in again."));
     }
     if (
-      status === "expired" ||
-      status === "expire" ||
       status === "refused" ||
       status === "refuse" ||
-      status === "3" ||
+      status === "canceled" ||
+      status === "cancelled" ||
       status === "4"
     ) {
-      throw new Error(tr("The QR code expired. Please sign in again."));
+      throw new Error(tr("Sign-in was cancelled on your phone. Please try again."));
     }
   }
   throw new Error(tr("Sign-in timed out or was cancelled. Please sign in again."));

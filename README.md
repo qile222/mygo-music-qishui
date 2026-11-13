@@ -121,7 +121,7 @@ high → higher → highest → hi_res → medium；standard → medium → high
 
 ## 登录
 
-点应用里的 Sign in → 宿主弹出二维码 → 用汽水音乐 App 扫码确认。Cookie 只保存在
+点应用里的 Sign in → 宿主弹出二维码 → 用抖音 App（不是汽水音乐 App）扫码并在手机上确认。Cookie 只保存在
 MyGo 的插件数据目录（`plugin-data/qishui/storage.json`），不会写进仓库或日志。
 
 ## 限制
