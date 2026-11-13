@@ -1771,6 +1771,33 @@ export async function browse({ page }) {
   throw fail("unsupported", tr("No such page"));
 }
 
+// 宿主 0.1.26 起，Browse 页标题旁可以点“刷新”，让插件重新给一批内容。汽水的大多数
+// 推荐接口本身会轮换（私人漫游/探索电台/猜你喜欢每轮不同），所以这里先清掉对应缓存，
+// 再走一遍正常的 browse，让下次请求真的打到服务端，而不是拿旧缓存。
+export async function refreshBrowse({ page }) {
+  const name = String(page || "");
+  if (name === "radio") {
+    discoverRadioCache = null;
+  } else if (name === "daily") {
+    dailyCache = null;
+  } else if (name === "discover") {
+    dailyCache = null;
+    discoverRadioCache = null;
+  } else if (name === "playlists") {
+    discoverCache = null;
+    discoverPending = null;
+    discoverMixCache = null;
+  } else if (name === "modes") {
+    feedModeCache = null;
+    discoverRadioCache = null;
+  } else if (name === "all-modes") {
+    feedModeCache = null;
+  } else if (name === "charts" || name.startsWith("chart:")) {
+    chartCache = null;
+  }
+  return browse({ page: name });
+}
+
 // ---------- 搜索 ----------
 
 // 汽水同一实体在不同接口里包法不一致：搜索是 entity.track，歌单里是

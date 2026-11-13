@@ -256,6 +256,7 @@ plugins/qishui-lite/
 | `suggest` | `{query: string}` | `string[]` | 搜索联想词 |
 | `home` | 无 | `Browse` | 首页 |
 | `browse` | `{page: string}` | `Browse` | 自定义页面（`navigation[].page` 或 `morePage` 跳转） |
+| `refreshBrowse` | `{page: string}` | `Browse` | 可选：重新生成一个 Browse 页（0.1.26+）。app 在页标题旁显示刷新按钮，例如再要一批推荐歌单/电台 |
 | `playlists` | 无 | `Playlist[]` | 歌单列表 |
 | `playlist` | `{id: string}` | `Playlist` | 歌单详情（全量；宿主没有 `playlistPage` 时使用） |
 | `playlistPage` | `{id: string, offset: number}` | `Playlist` | 可选：歌单分页（0.1.25+）。`offset` 为已加载曲目数，返回本页 `tracks` 并设 `more` |
@@ -349,6 +350,7 @@ RemoteState  { playing, trackId?, position, duration, volume, device? }
 - `search`：`offset` = app 已加载的**该 kind 条目数**（`SearchResult` 五个数组里已展示的数量，按 kind 计）。返回里 `more: true` 才会继续显示"加载更多"；`more` 缺省/false 表示没有下一页。最后一页务必 `more: false`（app 用 `more && len>0` 判断）。
 - `liked`/`savedAlbums`/`comments`/`show`：同样 `offset` 为已加载数，返回带 `more`。
 - `playlist`：实现了可选导出 `playlistPage` 时，app 会一页页加载（`offset` = 已加载曲目数，`Playlist.more` 表示还有下一页）；未实现时退回 `playlist` 全量。`album`、`artist` 的 `tracks` 仍是一次取完；数据大时自行截断并保证 UI 可用。
+- `browse`：实现了可选导出 `refreshBrowse` 时，Browse 页标题旁会出现刷新按钮，点击后 app 调 `refreshBrowse({page})` 并用返回的新 `Browse` 替换页面内容（0.1.26+）；未实现时没有按钮。
 - 返回 `null` 数组与空数组不同：空数组渲染"空状态"，null 可能显示为加载失败，尽量给空数组。
 
 ### 3.5 错误协议与 UI 表现
