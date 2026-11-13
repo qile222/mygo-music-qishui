@@ -1602,12 +1602,13 @@ export async function home() {
       morePage: "modes",
     });
   }
-  // 首页只铺前 30 张，避免首页无限拉长；See All 页展示完整列表（APP 首页歌单 +
-  // 多轮 PC 编辑精选/猜你喜欢，按 id 去重）。推荐列表和 See All 共用同一份缓存。
+  // 首页只铺前 30 张，避免首页无限拉长。宿主 0.1.28+ 在标题右侧显示「换一批」，
+  // 旧宿主不认识 refresh，会退回 morePage 的 See All；两种宿主都能用。
   if (playlists.length) {
     sections.push({
       title: tr("Recommended Playlists"),
       playlists: playlists.slice(0, 30),
+      refresh: "home",
       morePage: "playlists",
     });
   }
@@ -1776,6 +1777,14 @@ export async function browse({ page }) {
 // 再走一遍正常的 browse，让下次请求真的打到服务端，而不是拿旧缓存。
 export async function refreshBrowse({ page }) {
   const name = String(page || "");
+  if (name === "home") {
+    feedModeCache = null;
+    discoverCache = null;
+    discoverPending = null;
+    discoverMixCache = null;
+    discoverRadioCache = null;
+    return home();
+  }
   if (name === "radio") {
     discoverRadioCache = null;
   } else if (name === "daily") {
