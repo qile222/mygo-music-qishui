@@ -1032,6 +1032,34 @@ function chartCards(charts) {
   }));
 }
 
+// 4 个官方榜之外的「全部上榜歌曲」：按榜单顺序合并去重，作为第 5 张卡片填满
+// 一行；它不是官方榜，卡片描述里写清楚是本周 4 个官方榜的聚合。
+function allChartTracks(charts) {
+  const seen = {};
+  const tracks = [];
+  for (const chart of charts) {
+    for (const track of chart.tracks || []) {
+      if (!track || seen[track.id]) continue;
+      seen[track.id] = true;
+      tracks.push(track);
+    }
+  }
+  return tracks;
+}
+
+function allChartCard(charts) {
+  if (!charts.length) return null;
+  const tracks = allChartTracks(charts);
+  if (!tracks.length) return null;
+  return {
+    id: "chart:all",
+    name: tr("All Charting Songs"),
+    imageUrl: charts[0].cover,
+    description: tr("Every song on this week's official charts, deduplicated"),
+    trackCount: tracks.length,
+  };
+}
+
 // 汽水没有专辑榜/歌手榜。为了让 Charts 不只有歌曲列表，用 4 个官方榜的上榜曲目
 // 聚合出「上榜专辑」「上榜歌手」：按上榜曲目数排序，同分时看最好名次。只做导航聚合，
 // 不冒充官方榜单，所以卡片区块会明确写「根据本周官方榜单聚合」。
@@ -1231,10 +1259,10 @@ function pinnedModeCards(cards) {
   );
 }
 
-// 首页听歌模式一轮 9 个：私人漫游固定第一，其余每次后移 9 个轮换。
+// 首页听歌模式一轮 10 个（两行各 5 个）：私人漫游固定第一，其余每次后移 9 个轮换。
 function homeModeBatch(cards) {
   const all = pinnedModeCards(cards);
-  const size = Math.min(9, all.length);
+  const size = Math.min(10, all.length);
   if (!size) return [];
   const pinned = all[0] && all[0].id === RECOMMEND_STATION.id ? [all[0]] : [];
   const rest = pinned.length ? all.slice(1) : all;
@@ -1291,7 +1319,7 @@ export async function stations() {
     listeningModeCards(),
     discoveryRadioStations(),
   ]);
-  const list = pinnedModeCards(cards).slice(0, 9);
+  const list = pinnedModeCards(cards).slice(0, 10);
   for (const radio of radios) {
     if (list.length >= 24) break;
     list.push(radio);
@@ -1650,7 +1678,7 @@ export async function browse({ page }) {
       listeningModeCards(),
       discoveryRadioStations(),
     ]);
-    const common = pinnedModeCards(cards).slice(0, 9);
+    const common = pinnedModeCards(cards).slice(0, 10);
     const sections = [];
     if (common.length) {
       sections.push({
@@ -1676,8 +1704,8 @@ export async function browse({ page }) {
   if (name === "all-modes") {
     const { cards } = await listeningModeCards();
     const visible = pinnedModeCards(cards);
-    const common = visible.slice(0, 9);
-    const more = visible.slice(9);
+    const common = visible.slice(0, 10);
+    const more = visible.slice(10);
     const sections = [];
     if (common.length) sections.push({ title: tr("Common Modes"), stations: common });
     if (more.length) sections.push({ title: tr("More Modes"), stations: more });
@@ -1758,8 +1786,10 @@ export async function browse({ page }) {
     const charts = await chartsData();
     const sections = [];
     const cards = chartCards(charts);
+    const all = allChartCard(charts);
+    if (all) cards.push(all);
     if (cards.length) sections.push({ playlists: cards });
-    const albums = topAlbumsFromCharts(charts, 20);
+    const albums = topAlbumsFromCharts(charts, 30);
     if (albums.length) {
       sections.push({
         title: tr("Top Albums"),
@@ -1767,7 +1797,7 @@ export async function browse({ page }) {
         albums,
       });
     }
-    const artists = topArtistsFromCharts(charts, 20);
+    const artists = topArtistsFromCharts(charts, 30);
     if (artists.length) {
       sections.push({
         title: tr("Top Artists"),
@@ -2353,6 +2383,21 @@ async function loadPlaylist(id) {
 
 export async function playlist({ id }) {
   const rawID = id === undefined || id === null ? "" : String(id);
+  if (rawID === "chart:all") {
+    const charts = await chartsData();
+    const tracks = allChartTracks(charts);
+    return {
+      id: rawID,
+      name: tr("All Charting Songs"),
+      imageUrl: charts[0] && charts[0].cover,
+      description: tr("Every song on this week's official charts, deduplicated"),
+      trackCount: tracks.length,
+      mine: false,
+      fixed: true,
+      saved: false,
+      tracks,
+    };
+  }
   if (rawID.startsWith("chart:")) {
     const chartID = rawID.slice("chart:".length);
     const chart = (await chartsData()).find((item) => item.id === chartID);
@@ -2389,6 +2434,23 @@ export async function playlist({ id }) {
 export async function playlistPage({ id, offset }) {
   const rawID = id === undefined || id === null ? "" : String(id);
   const start = Math.max(0, Math.floor(Number(offset) || 0));
+  if (rawID === "chart:all") {
+    const charts = await chartsData();
+    const tracks = allChartTracks(charts);
+    const page = tracks.slice(start, start + PAGE_SIZE);
+    return {
+      id: rawID,
+      name: tr("All Charting Songs"),
+      imageUrl: charts[0] && charts[0].cover,
+      description: tr("Every song on this week's official charts, deduplicated"),
+      trackCount: tracks.length,
+      mine: false,
+      fixed: true,
+      saved: false,
+      tracks: page,
+      more: start + page.length < tracks.length,
+    };
+  }
   if (rawID.startsWith("chart:")) {
     const chartID = rawID.slice("chart:".length);
     const chart = (await chartsData()).find((item) => item.id === chartID);
