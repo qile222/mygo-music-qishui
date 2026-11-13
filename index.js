@@ -221,6 +221,8 @@ let discoverMixCache = null;
 let discoverRadioCache = null;
 let dailyCache = null;
 let chartCache = null;
+// 首页「听歌模式」每次刷新从全部官方模式里换一批 9 个，避免只能看固定常用模式。
+let homeModeOffset = 0;
 const STATION_CACHE_MS = 5 * 60 * 1000;
 // 推荐歌单流每次返回 6–12 张且会轮换，host 不支持分页，所以在插件里多取几轮去重。
 const DISCOVER_MIX_ROUNDS = 6;
@@ -1223,6 +1225,15 @@ function cardsWithImage(cards) {
   return (cards || []).filter((card) => card && card.imageUrl);
 }
 
+// 首页听歌模式一轮 9 个，刷新时整体后移 9 个；全部官方模式轮完后回到开头。
+function homeModeBatch(cards) {
+  const all = cardsWithImage(cards);
+  const size = Math.min(9, all.length);
+  const picked = [];
+  for (let i = 0; i < size; i++) picked.push(all[(homeModeOffset + i) % all.length]);
+  return picked;
+}
+
 async function listeningModeCards() {
   const modes = await feedModeRows();
   const modesByID = {};
@@ -1593,12 +1604,13 @@ export async function home() {
   const sections = [];
   // 只展示有官方图的模式；私人漫游/熟悉/新鲜虽然接口能播，但官方没有返回图标，
   // 放进方形卡片会变成三张空白占位图，所以默认页先不展示。
-  const commonModes = cardsWithImage(cards).slice(0, 9);
+  const commonModes = homeModeBatch(cards);
   if (commonModes.length) {
     sections.push({
       title: tr("Listening Modes"),
       subtitle: tr("Official Qishui listening modes. Tap a card to keep the music going."),
       stations: commonModes,
+      refresh: "home:modes",
       morePage: "modes",
     });
   }
@@ -1608,7 +1620,7 @@ export async function home() {
     sections.push({
       title: tr("Recommended Playlists"),
       playlists: playlists.slice(0, 30),
-      refresh: "home",
+      refresh: "home:playlists",
       morePage: "playlists",
     });
   }
@@ -1712,11 +1724,17 @@ export async function browse({ page }) {
         title: tr("Explore Radio"),
         subtitle: tr("More scenes and styles"),
         stations: radios.slice(0, 15),
+        refresh: "discover:radio",
         morePage: "radio",
       });
     }
     if (tracks.length) {
-      sections.push({ title: tr("For You"), tracks, morePage: "daily" });
+      sections.push({
+        title: tr("For You"),
+        tracks,
+        refresh: "discover:for-you",
+        morePage: "daily",
+      });
     }
     return {
       title: tr("Discover"),
@@ -1777,13 +1795,32 @@ export async function browse({ page }) {
 // 再走一遍正常的 browse，让下次请求真的打到服务端，而不是拿旧缓存。
 export async function refreshBrowse({ page }) {
   const name = String(page || "");
-  if (name === "home") {
+  if (name === "home" || name === "home:all") {
     feedModeCache = null;
     discoverCache = null;
     discoverPending = null;
     discoverMixCache = null;
     discoverRadioCache = null;
+    homeModeOffset = 0;
     return home();
+  }
+  if (name === "home:playlists") {
+    discoverCache = null;
+    discoverPending = null;
+    discoverMixCache = null;
+    return home();
+  }
+  if (name === "home:modes") {
+    homeModeOffset += 9;
+    return home();
+  }
+  if (name === "discover:for-you") {
+    dailyCache = null;
+    return browse({ page: "discover" });
+  }
+  if (name === "discover:radio") {
+    discoverRadioCache = null;
+    return browse({ page: "discover" });
   }
   if (name === "radio") {
     discoverRadioCache = null;
