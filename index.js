@@ -1221,16 +1221,29 @@ function sceneImage(modesByID, sceneID) {
   return mode && mode.imageUrl ? mode.imageUrl : "";
 }
 
-function cardsWithImage(cards) {
-  return (cards || []).filter((card) => card && card.imageUrl);
+// 私人漫游是个人电台，固定放在听歌模式第一位；换一批只轮换其余模式。
+// 它没有官方图标，保留空 imageUrl 让宿主显示电台占位图。
+function pinnedModeCards(cards) {
+  const all = (cards || []).filter(Boolean);
+  const pinned = all.filter((card) => card.id === RECOMMEND_STATION.id);
+  return pinned.concat(
+    all.filter((card) => card.id !== RECOMMEND_STATION.id && card.imageUrl),
+  );
 }
 
-// 首页听歌模式一轮 9 个，刷新时整体后移 9 个；全部官方模式轮完后回到开头。
+// 首页听歌模式一轮 9 个：私人漫游固定第一，其余每次后移 9 个轮换。
 function homeModeBatch(cards) {
-  const all = cardsWithImage(cards);
+  const all = pinnedModeCards(cards);
   const size = Math.min(9, all.length);
-  const picked = [];
-  for (let i = 0; i < size; i++) picked.push(all[(homeModeOffset + i) % all.length]);
+  if (!size) return [];
+  const pinned = all[0] && all[0].id === RECOMMEND_STATION.id ? [all[0]] : [];
+  const rest = pinned.length ? all.slice(1) : all;
+  if (!rest.length) return pinned;
+  const picked = pinned.slice();
+  const remaining = Math.min(size - picked.length, rest.length);
+  for (let i = 0; i < remaining; i++) {
+    picked.push(rest[(homeModeOffset + i) % rest.length]);
+  }
   return picked;
 }
 
@@ -1278,7 +1291,7 @@ export async function stations() {
     listeningModeCards(),
     discoveryRadioStations(),
   ]);
-  const list = cardsWithImage(cards).slice(0, 9);
+  const list = pinnedModeCards(cards).slice(0, 9);
   for (const radio of radios) {
     if (list.length >= 24) break;
     list.push(radio);
@@ -1602,8 +1615,8 @@ export async function home() {
     recommendedPlaylists(),
   ]);
   const sections = [];
-  // 只展示有官方图的模式；私人漫游/熟悉/新鲜虽然接口能播，但官方没有返回图标，
-  // 放进方形卡片会变成三张空白占位图，所以默认页先不展示。
+  // 私人漫游固定保留（没有官方图标时由宿主显示电台占位图）；其余只展示有官方图
+  // 或本地生成图标的模式，避免熟悉/新鲜变成空白卡片。
   const commonModes = homeModeBatch(cards);
   if (commonModes.length) {
     sections.push({
@@ -1631,13 +1644,13 @@ export async function home() {
 export async function browse({ page }) {
   const name = String(page || "");
   if (name === "modes") {
-    // 默认页按汽水官方结构：常用模式 + 探索更多新模式（官方照片电台）。45 个场景
-    // 图标不在这里铺满，避免一整页同色图标；需要时通过「See All」进入 all-modes。
+    // 默认页按汽水官方结构：常用模式 + 探索更多新模式（官方照片电台）。私人漫游
+    // 固定在第一张，其余常用模式都显示彩色方卡；需要时进入 all-modes。
     const [{ cards }, radios] = await Promise.all([
       listeningModeCards(),
       discoveryRadioStations(),
     ]);
-    const common = cardsWithImage(cards).slice(0, 9);
+    const common = pinnedModeCards(cards).slice(0, 9);
     const sections = [];
     if (common.length) {
       sections.push({
@@ -1662,7 +1675,7 @@ export async function browse({ page }) {
   }
   if (name === "all-modes") {
     const { cards } = await listeningModeCards();
-    const visible = cardsWithImage(cards);
+    const visible = pinnedModeCards(cards);
     const common = visible.slice(0, 9);
     const more = visible.slice(9);
     const sections = [];
