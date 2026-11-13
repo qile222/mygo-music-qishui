@@ -2196,6 +2196,60 @@ export async function playlist({ id }) {
   return item;
 }
 
+// 宿主按需取歌单的一页。汽水 /luna/playlist/detail 的 cursor 是已取条数，
+// 单页上限约 50 首；has_more 偶尔缺失，用 next_cursor 判断是否还有下一页。
+export async function playlistPage({ id, offset }) {
+  const rawID = id === undefined || id === null ? "" : String(id);
+  const start = Math.max(0, Math.floor(Number(offset) || 0));
+  if (rawID.startsWith("chart:")) {
+    const chartID = rawID.slice("chart:".length);
+    const chart = (await chartsData()).find((item) => item.id === chartID);
+    if (!chart) throw fail("unavailable", tr("No such chart"));
+    const tracks = chart.tracks.slice(start, start + PAGE_SIZE);
+    return {
+      id: rawID,
+      name: chart.title,
+      imageUrl: chart.cover,
+      description: chart.description,
+      trackCount: Math.max(chart.trackCount, chart.tracks.length),
+      mine: false,
+      fixed: true,
+      saved: false,
+      tracks: tracks,
+      more: start + tracks.length < chart.tracks.length,
+    };
+  }
+  const playlistID = asID(id);
+  const data = await luna("/luna/playlist/detail", {
+    body: { playlist_id: playlistID, cursor: String(start), count: String(PAGE_SIZE) },
+  });
+  const tracks = [];
+  for (const item of data.media_resources || []) {
+    const track = toTrack(rawTrackOf(item && item.entity ? item.entity : item));
+    if (track) tracks.push(track);
+  }
+  const item = data.playlist ? toPlaylist(data.playlist) : { id: playlistID };
+  if (!item.id) item.id = playlistID;
+  item.tracks = tracks;
+  if (item.trackCount === undefined) item.trackCount = tracks.length;
+  if (item.tracks.length > item.trackCount) item.trackCount = item.tracks.length;
+  // 汽水的 next_cursor 偶尔跳过已取条数，has_more 也不总是可靠；歌单的
+  // trackCount 才是总共多少首。不知道总数时才退回接口的翻页字段。
+  const next = Number(data.next_cursor);
+  const more =
+    tracks.length > 0 &&
+    (item.trackCount > 0
+      ? start + tracks.length < item.trackCount
+      : !!data.has_more || (Number.isSafeInteger(next) && next > start + tracks.length));
+  // 第一页才需要收藏状态；后续页只追加歌曲。
+  if (start === 0 && !item.mine) {
+    const rows = await decorationRows("playlist", savedPlaylistRows);
+    if (rows) item.saved = rows.some((raw) => String(raw.id) === playlistID);
+  }
+  item.more = more;
+  return item;
+}
+
 // ---------- 我喜欢的音乐 ----------
 
 export async function liked({ offset }) {
