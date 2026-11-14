@@ -281,7 +281,7 @@ plugins/qishui-lite/
 | `show` | `{id: string, offset: number}` | `ShowPage` | 播客详情 + 单集分页 |
 | `subscribeShow` | `{id: string, on: boolean}` | 无 | 订阅/取消订阅播客 |
 | `stations` | 无 | `Station[]` | 电台/漫游列表 |
-| `stationNext` | `{id: string}` | `Track[]` | 电台下一批歌曲；支持 `similar:<trackId>` 自定义 id，供宿主右键「播放相似单曲」使用 |
+| `stationNext` | `{id: string}` | `Track[]` | 电台下一批歌曲；id 由 `stations()` 返回，插件不得用相似/相关算法自行生成歌曲流 |
 | `comments` | `{trackId: string, offset: number}` | `CommentPage` | 歌曲评论分页 |
 | `likeComment` | `{trackId: string, commentId: string, on: boolean}` | 无 | 点赞评论 |
 | `postComment` | `{trackId: string, text: string}` | `Comment` | 发评论，返回新评论 |
