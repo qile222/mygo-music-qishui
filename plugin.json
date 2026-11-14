@@ -1,7 +1,7 @@
 {
   "id": "qishui",
   "name": "Qishui Music",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "minAppVersion": "0.1.22",
   "main": "index.js",
   "playback": "stream",
@@ -30,11 +30,6 @@
       "page": "discover",
       "title": "Discover",
       "icon": "star"
-    },
-    {
-      "page": "charts",
-      "title": "Charts",
-      "icon": "chart"
     },
     {
       "builtin": "liked",

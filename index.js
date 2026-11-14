@@ -1617,11 +1617,12 @@ export async function home() {
       morePage: "playlists",
     });
   }
-  // 首页显示完就把发现页要用的两批数据在后台预热，用户点 Discover 时通常
-  // 已经拿好了；不 await，避免拖慢首页本身。两个函数都有在途请求合并和 5 分钟缓存。
+  // 首页显示完就把发现页要用的三批数据在后台预热，用户点 Discover 时通常
+  // 已经拿好了；不 await，避免拖慢首页本身。三个函数都有在途请求合并和 5 分钟缓存。
+  chartsData().catch(() => {});
   dailyTracks().catch(() => {});
   discoveryRadioStations().catch(() => {});
-  // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
+  // 最近播放有独立侧栏入口，首页不再重复放一遍。
   return { title: tr("Qishui Music"), sections };
 }
 
@@ -1708,14 +1709,23 @@ export async function browse({ page }) {
     };
   }
   if (name === "discover") {
-    // 推荐歌单只保留在首页，榜单只保留在 Charts 页；发现页聚焦「猜你喜欢 + 电台」，
-    // 不再放 Editor's Picks 和热歌榜/新歌榜/欧美榜，避免三个入口互相重复。
-    const [tracks, radios] = await Promise.all([
+    // 推荐歌单只保留在首页；发现页 = 官方榜单 + 探索电台 + 猜你喜欢，不再单独占一个
+    // Charts 侧栏入口（官方只有 4 个榜，放进发现页更紧凑）。
+    const [charts, tracks, radios] = await Promise.all([
+      chartsData().catch(() => []),
       dailyTracks().catch(() => []),
       discoveryRadioStations().catch(() => []),
     ]);
     const sections = [];
-    // 电台在前，猜你喜欢在后：发现页先给「场景/风格」入口，再给个性化歌曲。
+    const cards = chartCards(charts);
+    if (cards.length) {
+      sections.push({
+        title: tr("Charts"),
+        subtitle: tr("Qishui Music · Live charts"),
+        playlists: cards,
+      });
+    }
+    // 电台在榜单后、猜你喜欢前：先给场景/风格入口，再给个性化歌曲。
     if (radios.length) {
       sections.push({
         title: tr("Explore Radio"),
@@ -1735,20 +1745,6 @@ export async function browse({ page }) {
     }
     return {
       title: tr("Discover"),
-      sections,
-    };
-  }
-  if (name === "charts") {
-    const charts = await chartsData();
-    const sections = [];
-    const cards = chartCards(charts);
-    if (cards.length) sections.push({ playlists: cards });
-    if (!sections.length) sections.push({ title: tr("Charts"), empty: tr("No such chart") });
-    return {
-      title: tr("Charts"),
-      subtitle: tr("Qishui Music · Live charts"),
-      // 四个官方榜固定，刷新没有意义；隐藏宿主页面级刷新按钮。
-      noRefresh: true,
       sections,
     };
   }
@@ -1822,8 +1818,6 @@ export async function refreshBrowse({ page }) {
     discoverRadioCache = null;
   } else if (name === "all-modes") {
     feedModeCache = null;
-  } else if (name === "charts" || name.startsWith("chart:")) {
-    chartCache = null;
   }
   return browse({ page: name });
 }
