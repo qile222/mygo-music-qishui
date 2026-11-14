@@ -312,7 +312,7 @@ Artist       { id, name, imageUrl?, following? }
 Album        { id, name, imageUrl?, artists?, released?, saved? }
 Playlist     { id, name, imageUrl?, description?, owner?, trackCount?, mine?, saved?, fixed?, tracks? }
 SearchResult { tracks?, albums?, artists?, playlists?, shows?, more? }
-Browse       { title?, subtitle?, imageUrl?, description?, sections? }
+Browse       { title?, subtitle?, imageUrl?, description?, sections?, noRefresh? }
 Section      { title?, tracks?, albums?, artists?, playlists?, shows?, stations?, links?, morePage?, refresh?, empty?, pageTitle?, subtitle? }
 Link         { title, subtitle?, imageUrl?, page }
 NavItem      { title, page?, builtin?, icon? }
@@ -338,7 +338,7 @@ RemoteState  { playing, trackId?, position, duration, volume, device? }
 - `Track`：`id` + `name` + `album` 必备（`album` 至少给 `{id, name}`）；`duration` 是**毫秒**；`url` 是"源站歌曲页"链接（分享/复制链接用），不是音频地址；`unavailable: true` = 无版权/不可播，UI 会置灰并跳过；播客单集用 `showId`/`description`/`published`（`published` 是 ISO 时间字符串）。
 - `Album.released` 是字符串（如 `"2024-01-01"` 或年份），app 只展示。
 - `Playlist.fixed`：true = 固定顺序歌单（不允许拖动排序）。
-- `Section` 里同一个 `Browse` 可以有多种横向列表：tracks/albums/artists/playlists/shows/stations/links，各列表并行展示；`morePage` 是"查看全部"跳转的 `page` 名（点击调用 `browse({page})`）；`refresh` 非空时该 section 标题右侧显示刷新图标而不是 See All，点击调用 `refreshBrowse({page: refresh})`；`home` / `home:<what>` 刷新 Home，`<page>:<what>` 刷新该 Browse 页并替换整页（app 0.1.28+）；`empty` 是非空时的占位文案（列表为空时显示）；`pageTitle`/`subtitle` 用于卡片详情页标题。
+- `Section` 里同一个 `Browse` 可以有多种横向列表：tracks/albums/artists/playlists/shows/stations/links，各列表并行展示；`morePage` 是"查看全部"跳转的 `page` 名（点击调用 `browse({page})`）；`refresh` 非空时该 section 标题右侧显示刷新图标而不是 See All，点击调用 `refreshBrowse({page: refresh})`；`home` / `home:<what>` 刷新 Home，`<page>:<what>` 刷新该 Browse 页并替换整页（app 0.1.28+）；`empty` 是非空时的占位文案（列表为空时显示）；`pageTitle`/`subtitle` 用于卡片详情页标题。`noRefresh` 为 true 表示这一页没有可换的新内容（如固定榜单），app 不显示页面级刷新按钮（0.1.37+）。
 - `Lyrics.lrc`：整段 LRC 文本（app 自己解析）；也可以给结构化的 `lines`（`start/end` 秒，`text`，`translation`，逐字 `words`）；两者可同时给，app 优先用 `lines`（有逐字时更好）。
 - `NavItem.builtin` ∈ `home|liked|savedAlbums|stations|shows`；`icon` ∈ `home|note|album|artist|playlist|radio|podcast|chart|calendar|heart|search|star`。
 - `Stream.type`：`"mp3"`、`"flac"`、`"ogg"`、`"wav"`、`"m4a"`、`"aac"`。**只用于缓存文件命名与"无损"徽标**，实际容器由 app 嗅探字节（见 §6），但请尽量填对。
@@ -350,7 +350,7 @@ RemoteState  { playing, trackId?, position, duration, volume, device? }
 - `search`：`offset` = app 已加载的**该 kind 条目数**（`SearchResult` 五个数组里已展示的数量，按 kind 计）。返回里 `more: true` 才会继续显示"加载更多"；`more` 缺省/false 表示没有下一页。最后一页务必 `more: false`（app 用 `more && len>0` 判断）。
 - `liked`/`savedAlbums`/`comments`/`show`：同样 `offset` 为已加载数，返回带 `more`。
 - `playlist`：实现了可选导出 `playlistPage` 时，app 会一页页加载（`offset` = 已加载曲目数，`Playlist.more` 表示还有下一页）；未实现时退回 `playlist` 全量。`album`、`artist` 的 `tracks` 仍是一次取完；数据大时自行截断并保证 UI 可用。
-- `browse`：实现了可选导出 `refreshBrowse` 时，Browse 页标题旁会出现刷新按钮，点击后 app 调 `refreshBrowse({page})` 并用返回的新 `Browse` 替换页面内容（0.1.26+）；section 设置了 `refresh` 时，该 section 标题右侧也会出现刷新图标（0.1.28+），值为 `home`/`home:<what>` 或 `<page>:<what>`。未实现 `refreshBrowse` 时不显示按钮。
+- `browse`：实现了可选导出 `refreshBrowse` 时，Browse 页标题旁会出现刷新按钮，点击后 app 调 `refreshBrowse({page})` 并用返回的新 `Browse` 替换页面内容（0.1.26+）；返回的 `Browse.noRefresh=true` 时 app 不显示页面级刷新按钮（0.1.37+）。section 设置了 `refresh` 时，该 section 标题右侧也会出现刷新图标（0.1.28+），值为 `home`/`home:<what>` 或 `<page>:<what>`。刷新请求进行时按钮图标旋转，答案返回后停止（0.1.37+）。未实现 `refreshBrowse` 时不显示按钮。
 - 返回 `null` 数组与空数组不同：空数组渲染"空状态"，null 可能显示为加载失败，尽量给空数组。
 
 ### 3.5 错误协议与 UI 表现

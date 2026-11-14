@@ -45,7 +45,10 @@ const ARTIST_ALBUM_LIMIT = 1000;
 const PLAYLIST_LIMIT = 500;
 const LIKED_LIMIT = 1000;
 const DAILY_LIMIT = 30;
-const DAILY_PAGES = 6;
+// 官方推荐流每个请求最多给 18 首（20 及以上会回退成 6 首），两页并行就够
+// 拼出 20–30 首，比旧版串行取 6 页快一倍。
+const DAILY_PAGE_SIZE = 18;
+const DAILY_PAGES = 2;
 const SIGN_IN_DEADLINE = 4 * 60 * 1000;
 
 // ---------- 基础工具 ----------
@@ -219,7 +222,9 @@ let likedCache = null;
 let feedModeCache = null;
 let discoverMixCache = null;
 let discoverRadioCache = null;
+let discoverRadioPending = null;
 let dailyCache = null;
+let dailyPending = null;
 let chartCache = null;
 // 首页「听歌模式」每次刷新从全部官方模式里换一批 9 个，避免只能看固定常用模式。
 let homeModeOffset = 0;
@@ -1094,7 +1099,11 @@ function topArtistsFromCharts(charts, limit) {
       }
     });
   }
+  // 只保留在官方榜里出现两次以上的歌手：只上榜一次的合作/feat 歌手会把
+  // 「Top Artists」挤满，看起来全是没听过的人。汽水没有官方歌手榜，所以这
+  // 只是「多首上榜歌曲的歌手」，副标题会写清楚，不冒充官方排名。
   return [...map.values()]
+    .filter((hit) => hit.count >= 2)
     .sort((a, b) => b.count - a.count || a.best - b.best || String(a.artist.name).localeCompare(String(b.artist.name)))
     .slice(0, limit)
     .map((hit) => hit.artist);
@@ -1233,17 +1242,26 @@ async function discoveryRadioStations(force) {
   if (!force && discoverRadioCache && Date.now() - discoverRadioCache.at < STATION_CACHE_MS) {
     return discoverRadioCache.rows;
   }
-  let rows = [];
+  if (discoverRadioPending) return discoverRadioPending;
+  const request = (async () => {
+    let rows = [];
+    try {
+      const data = await pc("/luna/pc/discover", {
+        body: { first_request: true, pc_new_discover_request: true },
+      });
+      rows = radioStationsOf(data);
+    } catch (error) {
+      rows = [];
+    }
+    discoverRadioCache = { at: Date.now(), rows };
+    return rows;
+  })();
+  discoverRadioPending = request;
   try {
-    const data = await pc("/luna/pc/discover", {
-      body: { first_request: true, pc_new_discover_request: true },
-    });
-    rows = radioStationsOf(data);
-  } catch (error) {
-    rows = [];
+    return await request;
+  } finally {
+    if (discoverRadioPending === request) discoverRadioPending = null;
   }
-  discoverRadioCache = { at: Date.now(), rows };
-  return rows;
 }
 
 // 官方「听歌模式」页：私人漫游 + 8 个常用模式 + 探索更多新模式（按账号推荐的电台）。
@@ -1652,7 +1670,7 @@ async function songTabPage(cursor, round, pending) {
     played: pending,
     count: currentRound,
     cursor: String(cursor || ""),
-    pageCount: 20,
+    pageCount: DAILY_PAGE_SIZE,
   });
   const data = await pc("/luna/pc/feed/song-tab", { body, timeoutMs: 20000 });
   return {
@@ -1663,50 +1681,44 @@ async function songTabPage(cursor, round, pending) {
   };
 }
 
-// 发现页 For You 的「More」：官方猜你喜欢一次只返回 6 首，按已取条数翻 6 页聚合成
-// 每日推荐。cursor 是已经拿到的条数，不是去重后的条数；同一首歌可能跨页重复，所以
-// 这里按 id 去重，凑满 DAILY_LIMIT 或接口没有更多就停。
+// 发现页 For You 的「More」：官方猜你喜欢每个请求最多给 18 首。按固定 cursor 并行
+// 取两页（0、18），按 id 去重后通常有 30–36 首；cursor 是原始槽位，不是去重后的条数。
 async function dailyTracks(force) {
   if (!force && dailyCache && Date.now() - dailyCache.at < STATION_CACHE_MS) {
     return dailyCache.tracks;
   }
-  const tracks = [];
-  const seen = {};
-  const add = (page) => {
-    for (const track of page.tracks || []) {
-      if (seen[track.id]) continue;
-      seen[track.id] = true;
-      tracks.push(track);
-      if (tracks.length >= DAILY_LIMIT) return;
-    }
-  };
-  try {
-    // 第一页确定每页条数；后面的页互不依赖，按固定 cursor 并行请求，避免点开
-    // 「每日推荐」后串行等 5、6 次网络往返。
-    const first = await songTabPage("", 1);
-    if (!first.tracks.length) {
-      dailyCache = { at: Date.now(), tracks };
-      return tracks;
-    }
-    add(first);
-    if (first.hasMore && tracks.length < DAILY_LIMIT) {
-      const pageSize = first.tracks.length;
-      // 首屏这批是已下发但尚未播放的待播曲目；后续页带上它们，既符合官方字段
-      // 语义，也能让服务端少返回重复曲目。
-      const pendingTracks = first.tracks.slice(0, 30);
+  if (dailyPending) return dailyPending;
+  const request = (async () => {
+    const tracks = [];
+    const seen = {};
+    const add = (page) => {
+      for (const track of page.tracks || []) {
+        if (seen[track.id]) continue;
+        seen[track.id] = true;
+        tracks.push(track);
+        if (tracks.length >= DAILY_LIMIT) return;
+      }
+    };
+    try {
       const requests = [];
-      for (let i = 1; i < DAILY_PAGES; i++) {
+      for (let i = 0; i < DAILY_PAGES; i++) {
         requests.push(
-          songTabPage(String(pageSize * i), i + 1, pendingTracks).catch(() => ({ tracks: [] }))
+          songTabPage(String(DAILY_PAGE_SIZE * i), i + 1).catch(() => ({ tracks: [] }))
         );
       }
       for (const page of await Promise.all(requests)) add(page);
+    } catch (error) {
+      // 保留已拿到的；全部失败则让 More 页显示空状态。
     }
-  } catch (error) {
-    // 首屏已经有歌时保留；全部失败则让 More 页显示空状态。
+    dailyCache = { at: Date.now(), tracks };
+    return tracks;
+  })();
+  dailyPending = request;
+  try {
+    return await request;
+  } finally {
+    if (dailyPending === request) dailyPending = null;
   }
-  dailyCache = { at: Date.now(), tracks };
-  return tracks;
 }
 
 export async function home() {
@@ -1738,6 +1750,10 @@ export async function home() {
       morePage: "playlists",
     });
   }
+  // 首页显示完就把发现页要用的两批数据在后台预热，用户点 Discover 时通常
+  // 已经拿好了；不 await，避免拖慢首页本身。两个函数都有在途请求合并和 5 分钟缓存。
+  dailyTracks().catch(() => {});
+  discoveryRadioStations().catch(() => {});
   // 榜单、最近播放都有独立侧栏入口，首页不再重复放一遍。
   return { title: tr("Qishui Music"), sections };
 }
@@ -1874,7 +1890,7 @@ export async function browse({ page }) {
     if (artists.length) {
       sections.push({
         title: tr("Top Artists"),
-        subtitle: tr("Aggregated from this week's official charts"),
+        subtitle: tr("Artists with more than one song on this week's official charts"),
         artists,
       });
     }
@@ -1882,6 +1898,8 @@ export async function browse({ page }) {
     return {
       title: tr("Charts"),
       subtitle: tr("Qishui Music · Live charts"),
+      // 四个官方榜固定，刷新没有意义；隐藏宿主页面级刷新按钮。
+      noRefresh: true,
       sections,
     };
   }
@@ -1892,6 +1910,7 @@ export async function browse({ page }) {
     return {
       title: chart.title,
       subtitle: chart.description || undefined,
+      noRefresh: true,
       sections: [{ title: tr("All Songs"), tracks: chart.tracks }],
     };
   }
