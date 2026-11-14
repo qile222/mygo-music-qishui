@@ -606,11 +606,51 @@ APP host 等价：POST {APP}/luna/playlist/detail body {playlist_id, cursor, cou
 - ⚠️ count 不一致：同一首歌 PC 匿名与 APP 带 Cookie 返回的总数可能不同。**总评论数只作展示参考**，不要用它判断是否还有下一页（用 has_more）。
 - user.medium_avatar_url.urls[] 是签名 CDN 链接，会过期；不要持久化。
 - 无 Cookie 也可读；评论排序由服务端决定（未见排序参数）。
-- 回复内容/回复列表接口未实现 ❓（响应只有 count_reply）。
+### 10.2 楼中楼回复 ✅（PC，2026-11-14 实测）
 
-### 10.2 写评论（不支持）❌
+    GET https://api.qishui.com/luna/pc/comments/<comment_id>/replies?aid=386088&device_platform=pc&version_code=30020100&group_id=<track_id>&group_type=0&cursor=&count=20&image_strategy=2
+    User-Agent: LunaPC/3.0.0(290101097)
+    Cookie: <登录后优先带签名请求，匿名也可读>
 
-- /luna/pc/comments/create、/luna/pc/comments/action 需签名，未实测通过。插件只读。
+- 一级评论响应里的 `count_reply` 是回复数；大于 0 时用本端点展开。
+- 响应与一级评论同构，只是数组名叫 `reply_infos`（不是 `comments`）：
+
+    {"status_info":{...},
+     "reply_infos":[{
+        "id":"<回复id>", "content":"...", "count_digged":0, "time_created":1762000000,
+        "user":{"id":"<uid>","nickname":"...","medium_avatar_url":{...}},
+        "reply_to":{"user":{"nickname":"<被回复者>","public_name":"..."}},
+        "root_comment_id":"<根评论id>", "user_artist_info":{...}
+     }],
+     "count":"<该评论下的回复总数>", "cursor":"20", "has_more":true}
+
+- 分页：`cursor` 用响应里的 `cursor`，`has_more` 判断是否继续；`count` 是回复总数（字符串）。
+- 头像处理同一级评论；`reply_to.user.nickname` 用作“回复 @某某”展示。
+
+### 10.3 写评论 / 回复 / 点赞 ✅（PC，签名）
+
+- 发表一级评论或回复：`POST /luna/pc/comments/create`（签名）body
+
+    {"group_id":"<track>","group_type":0,"comment_type":0,"text":"...",
+     "hashtags":[],"reply_id":"<根评论id或空>",
+     "reply_to_reply_id":"<被回复的回复id，一级评论用空>",
+     "reply_to_user_id":"<被回复用户id，可选>","text_extra":[]}
+
+  成功返回 `created_comment`（19 位 ID；0 或缺失视为失败）。
+- 点赞/取消：`POST /luna/pc/comments/action`（签名）body
+
+    {"comment_id":"<根评论id>","reply_id":"<回复id，一级评论用空>",
+     "group_id":"<track>","type":1,"scene_name":"comment_detail"}
+
+  `type:1` 点赞、`type:3` 取消；成功返回 `liked_comment`。
+- 回复的点赞也必须带上根评论 `comment_id`；只传 `reply_id` 不生效。
+
+---
+
+### 10.4 兼容性说明
+
+- 旧版文档说“无回复接口/写评论不支持”已过时：`/luna/pc/comments/<id>/replies` 与 create/action 均已实测可用。
+- App 端（宿主）0.1.41+ 才渲染楼中楼；旧宿主只显示一级评论，插件仍需兼容返回一级评论。
 
 ---
 
@@ -1008,9 +1048,11 @@ type 为准。
 - 歌单编辑只允许自己创建的普通歌单（type ∈ {2,3,11}）；type 1（我喜欢）只能通过
   `/luna/pc/me/collection/media` 加/删歌曲；type 4（抖音收藏）固定，不可改。
 - #35 排序提交完整歌曲顺序，插件在任一元素不是 track 时放弃，避免丢歌。
-- 评论没有回复/楼中楼接口：#42 之外对 /luna/pc/comments 传 reply_id 等参数会被忽略，
-  /luna/pc/comments/reply、/replies、/detail 均 404；宿主 MyGo 的 Comment 结构也没有
-  回复字段与 UI，因此插件范围内不实现评论回复。
+- 评论回复/楼中楼走 GET /luna/pc/comments/<comment_id>/replies（`reply_infos` 数组）；
+  给 /luna/pc/comments 传 reply_id 等参数仍会被忽略，/luna/pc/comments/reply、/replies、
+  /detail 仍是 404。发回复用 POST /luna/pc/comments/create 的 reply_id/reply_to_reply_id
+  字段；回复点赞用 POST /luna/pc/comments/action 并同时带根 comment_id 与 reply_id。
+  宿主 MyGo 0.1.41+ 才渲染楼中楼，旧宿主只显示一级评论。
 - 离线下载不需要插件写接口：宿主歌曲菜单的 Download… 会在 `stream` 返回 file://
   后直接拷到用户选择的位置。
 

@@ -2985,11 +2985,24 @@ function commentOf(raw) {
     commentAvatar(user.thumb_avatar_url || user.medium_avatar_url || user.url_avatar);
   const comment = { id: id, author: name, text: text };
   if (avatar) comment.avatarUrl = avatar;
+  const userId = user.id === undefined || user.id === null ? "" : String(user.id);
+  if (userId) comment.userId = userId;
   const seconds = Number(raw.time_created);
   if (Number.isFinite(seconds) && seconds > 0) comment.time = Math.round(seconds * 1000);
   const likes = Number(raw.count_digged);
   if (Number.isFinite(likes) && likes >= 0) comment.likes = Math.floor(likes);
   if (typeof raw.user_digged === "boolean") comment.liked = raw.user_digged;
+  const replyCount = Number(raw.count_reply);
+  if (Number.isFinite(replyCount) && replyCount > 0) comment.replyCount = Math.floor(replyCount);
+  const replyToUser = raw.reply_to && raw.reply_to.user ? raw.reply_to.user : null;
+  if (replyToUser) {
+    const replyToName =
+      (typeof replyToUser.nickname === "string" ? replyToUser.nickname.trim() : "") ||
+      (typeof replyToUser.public_name === "string" ? replyToUser.public_name.trim() : "");
+    if (replyToName) comment.replyTo = replyToName;
+  }
+  const rootID = raw.root_comment_id === undefined || raw.root_comment_id === null ? "" : String(raw.root_comment_id);
+  if (rootID && !/^0+$/.test(rootID)) comment.rootId = rootID;
   return comment;
 }
 
@@ -3055,6 +3068,132 @@ export async function comments({ trackId, offset }) {
     total: Math.max(state.total, state.comments.length),
     more: start + page.length < state.comments.length || (state.more && page.length > 0),
   };
+}
+
+const REPLIES_CACHE_TTL = 5 * 60 * 1000;
+const REPLIES_CACHE_LIMIT = 16;
+const repliesCache = new Map();
+
+async function repliesPage(trackId, commentId, cursor) {
+  const params = {
+    cursor: cursor,
+    count: COMMENTS_PAGE,
+    image_strategy: 2,
+  };
+  const path = "/luna/pc/comments/" + encodeURIComponent(commentId) + "/replies";
+  if (signedIn()) {
+    try {
+      return await signedGET(path, Object.assign({ group_id: trackId, group_type: 0 }, params));
+    } catch (error) {
+      if (error && error.code === "signIn") throw error;
+    }
+  }
+  return pc(path, { params: Object.assign({ group_id: trackId, group_type: 0 }, params) });
+}
+
+export async function replies({ trackId, commentId, offset }) {
+  const id = asID(trackId);
+  const root = asID(commentId);
+  const start = pageOffset(offset);
+  const key = id + ":" + root;
+  let state = start === 0 ? null : repliesCache.get(key);
+  if (state && Date.now() - state.at > REPLIES_CACHE_TTL) state = null;
+  if (!state) {
+    state = { at: Date.now(), comments: [], ids: new Set(), cursor: "", more: true, total: 0, pages: 0 };
+  }
+  while (state.comments.length <= start && state.more && state.pages < COMMENTS_MAX_PAGES) {
+    const cursor = state.cursor;
+    const data = await repliesPage(id, root, cursor);
+    const rows = Array.isArray(data.reply_infos) ? data.reply_infos : [];
+    const page = [];
+    for (const raw of rows) {
+      const mapped = commentOf(raw);
+      if (mapped) {
+        if (!mapped.rootId) mapped.rootId = root;
+        page.push(mapped);
+      }
+    }
+    for (const comment of page) {
+      if (state.ids.has(comment.id)) continue;
+      state.ids.add(comment.id);
+      state.comments.push(comment);
+    }
+    const total = Number(data.count);
+    if (Number.isFinite(total) && total >= 0) state.total = Math.floor(total);
+    const next = data.cursor === undefined || data.cursor === null ? "" : String(data.cursor);
+    state.more = data.has_more === true && page.length > 0 && !!next && next !== cursor;
+    state.cursor = next;
+    state.pages++;
+  }
+  state.at = Date.now();
+  repliesCache.delete(key);
+  repliesCache.set(key, state);
+  while (repliesCache.size > REPLIES_CACHE_LIMIT) {
+    const oldest = repliesCache.keys().next();
+    if (oldest.done) break;
+    repliesCache.delete(oldest.value);
+  }
+  const page = state.comments.slice(start, start + COMMENTS_PAGE).map((comment) => Object.assign({}, comment));
+  return {
+    comments: page,
+    total: Math.max(state.total, state.comments.length),
+    more: start + page.length < state.comments.length || (state.more && page.length > 0),
+  };
+}
+
+export async function postReply({ trackId, text, commentId, replyToId, replyToUserId }) {
+  const id = asID(trackId);
+  const root = asID(commentId);
+  const target = replyToId === undefined || replyToId === null || replyToId === "" ? "" : asID(replyToId);
+  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to post comments"));
+  const value = typeof text === "string" ? text.trim() : "";
+  if (!value) throw new Error(tr("Comment can't be empty"));
+  if (Array.from(value).length > 280) throw new Error(tr("Comments are limited to 280 characters"));
+  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw new Error(tr("Comment contains unsupported characters"));
+  const data = await signedPC("/luna/pc/comments/create", {
+    group_id: id,
+    group_type: 0,
+    comment_type: 0,
+    text: value,
+    hashtags: [],
+    reply_id: root,
+    reply_to_reply_id: target && target !== root ? target : "",
+    reply_to_user_id: replyToUserId ? String(replyToUserId) : "",
+    text_extra: [],
+  });
+  const created = data.created_comment === undefined || data.created_comment === null ? "" : String(data.created_comment);
+  if (!created || /^0+$/.test(created)) throw new Error(tr("Qishui didn't return the new comment ID"));
+  repliesCache.delete(id + ":" + root);
+  const profile = currentSession().profile || {};
+  const comment = { id: created, author: profile.name || tr("Me"), text: value, time: Date.now(), likes: 0, liked: false, rootId: root };
+  if (profile.imageUrl) comment.avatarUrl = profile.imageUrl;
+  if (profile.id) comment.userId = String(profile.id);
+  return comment;
+}
+
+export async function likeReply({ trackId, commentId, replyId, on }) {
+  const id = asID(trackId);
+  const root = asID(commentId);
+  const reply = asID(replyId);
+  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to like comments"));
+  const liked = on === true;
+  await signedPC("/luna/pc/comments/action", {
+    comment_id: root,
+    reply_id: reply,
+    group_id: id,
+    type: liked ? 1 : 3,
+    scene_name: "comment_detail",
+  });
+  const state = repliesCache.get(id + ":" + root);
+  if (!state) return;
+  for (const item of state.comments) {
+    if (item.id !== reply) continue;
+    if (item.liked !== liked) {
+      item.likes = Math.max(0, Number(item.likes || 0) + (liked ? 1 : -1));
+      item.liked = liked;
+    }
+    break;
+  }
 }
 
 export async function likeComment({ trackId, commentId, on }) {

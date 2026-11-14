@@ -20,12 +20,12 @@
 - 返回给 app 的时间字段必须是毫秒整数：`Track.duration`、`LyricLine.start/end`、
   `LyricWord.start/end`（Go 侧是 int64，传秒的小数会让整个响应反序列化失败）。
 - 写操作只允许：喜欢/取消喜欢歌曲（/luna/pc/me/collection/media 与 /delete）、点赞/取消点赞
-  评论（/luna/pc/comments/action）、发表一级评论（/luna/pc/comments/create）、收藏/取消收藏
-  歌单与专辑（/luna/pc/me/collection/playlist|album 与 /delete）、关注/取消关注艺人
-  （/luna/pc/me/collection/artist 与 /delete）、新建/重命名/删除自己的普通歌单、给自己的歌单
-  加歌/删歌/排序（/luna/pc/me/playlist 系列与 /luna/me/playlist/media/sort）。回复评论、下载
-  离线等其它功能不得自行实现（宿主没有对应接口/已有 Download… 菜单）。收藏成功后要清掉
-  isLiked 的 60 秒缓存。
+  评论与回复（/luna/pc/comments/action，回复时 comment_id 为根评论、reply_id 为回复）、
+  发表评论与回复（/luna/pc/comments/create，回复时 reply_id 为根评论、reply_to_reply_id 为
+  被回复的回复）、收藏/取消收藏歌单与专辑（/luna/pc/me/collection/playlist|album 与 /delete）、
+  关注/取消关注艺人（/luna/pc/me/collection/artist 与 /delete）、新建/重命名/删除自己的普通歌单、
+  给自己的歌单加歌/删歌/排序（/luna/pc/me/playlist 系列与 /luna/me/playlist/media/sort）。
+  下载离线等其它功能不得自行实现（宿主已有 Download… 菜单）。收藏成功后要清掉 isLiked 的 60 秒缓存。
 - 收藏歌单/专辑和关注艺人的列表只能从签名接口读：歌单与专辑在
   `/luna/pc/me/collection/mixed`（`item_types` 必须用重复的同名查询参数，不能拼成
   “a,b”），艺人在 `/luna/pc/me/collection/artist`。自己的歌单仍在 unsigned 的
@@ -39,10 +39,12 @@
 - `savedAlbums(offset)` 返回 `{albums, more}`，`offset` 是宿主已加载的条目数（不是页码），
   专辑要带 `saved: true`；`album()`/`artist()` 要带 `saved`/`following` 标记，但读取收藏
   状态失败时不能拖垮整页。sidebar 的收藏专辑页依赖 `plugin.json` 里的 `builtin: savedAlbums`。
-- 评论读取匿名可用（/luna/pc/comments），登录后优先走签名请求；签名失败/未装官方客户端时
-  必须退回匿名请求，评论照常能看。服务端当前不返回 user_digged，不得伪造“已点赞”状态；
-  点赞成功后只在本地缓存里更新，刷新后以服务端 count_digged 为准。日志和错误信息不得包含
-  评论正文、作者信息或头像 URL。
+- 评论读取匿名可用（/luna/pc/comments 一级、/luna/pc/comments/{comment_id}/replies 楼中楼），
+  登录后优先走签名请求；签名失败/未装官方客户端时必须退回匿名请求，评论照常能看。服务端当前
+  不返回 user_digged，不得伪造“已点赞”状态；点赞成功后只在本地缓存里更新，刷新后以服务端
+  count_digged 为准。回复映射：reply_infos[] 的 id/content/count_digged/time_created/user/
+  reply_to.user 分别映射到 Comment 的 id/text/likes/time/userId/replyTo，rootId 用请求的根评论
+  ID 补上。日志和错误信息不得包含评论正文、作者信息或头像 URL。
 - 官方签名进程必须常驻复用（stdin/stdout 逐行协议），不得每次请求重新 spawn；App 退出时
   stdin 关闭、进程随之结束。`played` 只做「最近播放」上报，失败不影响播放。
 - 听歌模式/私人漫游（`stations` / `stationNext`）只用 PC 侧公开接口（`/luna/pc/feed/mode`、`/luna/pc/discover`、`/luna/pc/feed/song-tab`、`/luna/pc/feed/radio/tracks`），不要要求签名或 spawn，Windows/Linux 也应能取到元数据；`stationNext` 必须按站维护 `count/played/seen/cursor`，对返回曲目去重、`played` 只留最后 30 条，`has_more:false` 或 `next_cursor` 缺失时置 done。探索电台必须区分歌手电台和曲风电台：`style.type===6` 是歌手电台（`flow_type=1`），否则是曲风/类型电台（`flow_type=2`）；`/luna/pc/feed/radio/tracks` 必须带 `flow_type`，否则服务端返回通用推荐流，会出现点 Jessie J 播别人歌的问题。

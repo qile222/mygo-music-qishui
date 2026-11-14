@@ -285,6 +285,9 @@ plugins/qishui-lite/
 | `comments` | `{trackId: string, offset: number}` | `CommentPage` | 歌曲评论分页 |
 | `likeComment` | `{trackId: string, commentId: string, on: boolean}` | 无 | 点赞评论 |
 | `postComment` | `{trackId: string, text: string}` | `Comment` | 发评论，返回新评论 |
+| `replies` | `{trackId: string, commentId: string, offset: number}` | `CommentPage` | 楼中楼回复分页；offset 为已加载回复数 |
+| `postReply` | `{trackId, text, commentId, replyToId, replyToUserId}` | `Comment` | 发回复；commentId 为根评论，replyToId 为被回复的评论/回复 |
+| `likeReply` | `{trackId, commentId, replyId, on: boolean}` | 无 | 点赞/取消点赞回复；commentId 为根评论 |
 | `played` | `{id: string}` | 无 | app 在歌曲开始播放时通知（用于计数/推荐）；该调用的普通错误只写日志 |
 | `lyrics` | `{id: string}` | `Lyrics` | 歌词 |
 | `stream` | `{id: string, quality: string}` | `Stream` | **播放地址**；quality ∈ `standard`/`high`/`lossless` |
@@ -323,7 +326,7 @@ ArtistPage   { artist, tracks?, albums? }
 Show         { id, name, imageUrl?, description?, publisher?, publisherPage?, episodeCount?, subscribed? }
 ShowPage     { show, episodes?, more? }
 Station      { id, name, description?, imageUrl? }
-Comment      { id, author, avatarUrl?, text, time?, likes?, liked? }
+Comment      { id, author, avatarUrl?, text, time?, likes?, liked?, userId?, replyCount?, replyTo?, rootId?, replies? }
 CommentPage  { comments?, total?, more? }
 Lyrics       { lrc?, translation?, lines? }
 LyricLine    { start, end?, text?, translation?, words? }
@@ -348,7 +351,8 @@ RemoteState  { playing, trackId?, position, duration, volume, device? }
 ### 3.4 分页约定
 
 - `search`：`offset` = app 已加载的**该 kind 条目数**（`SearchResult` 五个数组里已展示的数量，按 kind 计）。返回里 `more: true` 才会继续显示"加载更多"；`more` 缺省/false 表示没有下一页。最后一页务必 `more: false`（app 用 `more && len>0` 判断）。
-- `liked`/`savedAlbums`/`comments`/`show`：同样 `offset` 为已加载数，返回带 `more`。
+- `liked`/`savedAlbums`/`comments`/`replies`/`show`：同样 `offset` 为已加载数，返回带 `more`。
+- `replies`：一级评论的 `replyCount` 大于 0 时，app 显示「N 条回复」，展开后按 `offset` 分页调用；回复的 `rootId` 必须是根评论 ID，`replyTo` 是被回复者昵称（仅展示）。`postReply` 返回的新回复也要带 `rootId`；`likeReply` 的 `commentId` 是根评论、`replyId` 是回复。
 - `playlist`：实现了可选导出 `playlistPage` 时，app 会一页页加载（`offset` = 已加载曲目数，`Playlist.more` 表示还有下一页）；未实现时退回 `playlist` 全量。`album`、`artist` 的 `tracks` 仍是一次取完；数据大时自行截断并保证 UI 可用。
 - `browse`：实现了可选导出 `refreshBrowse` 时，Browse 页标题旁会出现刷新按钮，点击后 app 调 `refreshBrowse({page})` 并用返回的新 `Browse` 替换页面内容（0.1.26+）；返回的 `Browse.noRefresh=true` 时 app 不显示页面级刷新按钮（0.1.37+）。section 设置了 `refresh` 时，该 section 标题右侧也会出现刷新图标（0.1.28+），值为 `home`/`home:<what>` 或 `<page>:<what>`。刷新请求进行时按钮图标旋转，答案返回后停止（0.1.37+）。未实现 `refreshBrowse` 时不显示按钮。
 - 返回 `null` 数组与空数组不同：空数组渲染"空状态"，null 可能显示为加载失败，尽量给空数组。
