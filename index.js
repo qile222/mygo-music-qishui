@@ -1401,6 +1401,65 @@ async function stationNextFeed(id) {
   return rememberStationTracks(state, tracks);
 }
 
+// 「播放相似单曲」：汽水没有公开的 track-seeded 相似接口（feed/radio 传曲目 ID
+// 只会得到通用推荐），这里先用这首歌的歌手曲库做相似流，歌手的曲目翻完后回退到
+// 同账号的私人推荐流，保证电台能一直播下去。
+async function stationNextSimilar(trackID) {
+  const id = "similar:" + trackID;
+  const state = stationState(id);
+  if (!state.similar) {
+    const data = await seoTrack(trackID);
+    const raw = data && data.seo_track && data.seo_track.track;
+    const artistIDs = [];
+    for (const artist of (raw && raw.artists) || []) {
+      const value = artist && artist.id !== undefined && artist.id !== null ? String(artist.id) : "";
+      if (value && artistIDs.indexOf(value) === -1) artistIDs.push(value);
+    }
+    if (!artistIDs.length) throw fail("unavailable", tr("Couldn't find similar songs for this one."));
+    state.similar = { trackID: trackID, artistIDs: artistIDs, artistIndex: 0, cursor: "0", queue: [], done: false };
+  }
+  const sim = state.similar;
+  while (!sim.done && sim.queue.length < 12 && sim.artistIndex < sim.artistIDs.length) {
+    const artistID = sim.artistIDs[sim.artistIndex];
+    let data;
+    try {
+      data = await pc("/luna/pc/artists/" + artistID + "/tracks", {
+        params: { cursor: sim.cursor, count: "50" },
+        timeoutMs: 20000,
+      });
+    } catch (error) {
+      sim.artistIndex += 1;
+      sim.cursor = "0";
+      continue;
+    }
+    const list = trackList(data.tracks);
+    for (const track of list) {
+      if (!track || track.id === sim.trackID || state.seen[track.id]) continue;
+      if (sim.queue.some((item) => item.id === track.id)) continue;
+      sim.queue.push(track);
+    }
+    const next = data.next_cursor;
+    const more =
+      data.has_more !== false &&
+      list.length >= 50 &&
+      next !== undefined &&
+      next !== null &&
+      String(next) !== sim.cursor;
+    if (more) {
+      sim.cursor = String(next);
+    } else {
+      sim.artistIndex += 1;
+      sim.cursor = "0";
+    }
+  }
+  if (!sim.queue.length) {
+    sim.done = true;
+    // 歌手曲库翻完了：接着用私人推荐流，至少不会停在最后一首。
+    return stationNextFeed(id);
+  }
+  return rememberStationTracks(state, sim.queue.splice(0, 6));
+}
+
 async function stationNextRadio(radioID, flowType) {
   const flow = Number(flowType) === 1 ? 1 : 2;
   const id = "radio:" + flow + ":" + radioID;
@@ -1426,6 +1485,11 @@ export async function stationNext({ id }) {
   requireSignedIn(tr("Sign in to Qishui Music to play personal radio"));
   const key = String(id === undefined || id === null ? "" : id).trim();
   if (!key) throw fail("unsupported", tr("No such radio station"));
+  if (key.indexOf("similar:") === 0) {
+    const trackID = key.slice("similar:".length);
+    if (!/^\d{1,20}$/.test(trackID)) throw fail("unsupported", tr("No such radio station"));
+    return stationNextSimilar(trackID);
+  }
   if (key.indexOf("radio:") === 0) {
     const parts = key.split(":");
     let radioID = "";

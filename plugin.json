@@ -1,7 +1,7 @@
 {
   "id": "qishui",
   "name": "Qishui Music",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "minAppVersion": "0.1.22",
   "main": "index.js",
   "playback": "stream",
