@@ -1837,11 +1837,42 @@ function rawTrackOf(entity) {
 }
 
 const SEARCH_KINDS = {
-  tracks: { path: "/luna/search/track", entity: "track", out: "tracks", map: toTrack },
-  albums: { path: "/luna/search/album", entity: "album", out: "albums", map: toAlbum },
-  artists: { path: "/luna/search/artist", entity: "artist", out: "artists", map: toArtist },
-  playlists: { path: "/luna/search/playlist", entity: "playlist", out: "playlists", map: (raw) => toPlaylist(raw) },
+  tracks: { type: "track", entity: "track", out: "tracks", map: toTrack },
+  albums: { type: "album", entity: "album", out: "albums", map: toAlbum },
+  artists: { type: "artist", entity: "artist", out: "artists", map: toArtist },
+  playlists: { type: "playlist", entity: "playlist", out: "playlists", map: (raw) => toPlaylist(raw) },
 };
+
+// 搜索只需要一个随机的 UUID 作为搜索会话标识，不参与安全校验；这里不依赖
+// crypto.randomUUID（Goja 里没有 WebCrypto），用 Math.random 生成 v4 形状即可。
+function searchID() {
+  const bytes = [];
+  for (let i = 0; i < 16; i++) bytes.push(Math.floor(Math.random() * 256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.map((value) => (value < 16 ? "0" : "") + value.toString(16)).join("");
+  return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
+}
+
+// APP /luna/search/* 现在只返回 empty_search；PC web 搜索仍按官方网页版参数
+// 返回完整结果，而且不需要 X-Helios / X-Medusa 签名。参数取自官方网页端：
+// device_platform=web、channel=pc_web、search_method=input，外加每次搜索的
+// search_id。接口路径里的 track/album/artist/playlist 就是搜索类型。
+async function pcWebSearch(type, params) {
+  const query = {
+    aid: "386088",
+    device_platform: "web",
+    channel: "pc_web",
+    search_method: "input",
+    debug_params: "",
+    from_search_id: "",
+    search_scene: "",
+    search_id: searchID(),
+  };
+  for (const key of Object.keys(params || {})) query[key] = params[key];
+  const url = PC + "/luna/pc/search/" + type + "?" + queryString(query);
+  return payloadFrom(await fetchText(url, { ua: WEB_UA }));
+}
 
 export async function search({ query, kind, offset }) {
   const text = String(query || "").trim();
@@ -1851,8 +1882,10 @@ export async function search({ query, kind, offset }) {
   result[type.out] = [];
   result.more = false;
   if (!text) return result;
-  const data = await luna(type.path, {
-    params: { q: text, cursor: String(pageOffset(offset)), count: String(SEARCH_PAGE) },
+  const data = await pcWebSearch(type.type, {
+    q: text,
+    cursor: String(pageOffset(offset)),
+    count: String(SEARCH_PAGE),
   });
   const group = (data.result_groups || [])[0] || {};
   for (const item of group.data || []) {

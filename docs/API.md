@@ -216,22 +216,30 @@
 
 ### 2.1 四个独立搜索端点 ✅
 
-搜索**没有可用的混合端点**（/luna/pc/search/mixed 实测 1000004，见 §18），按 tab 分别请求：
+搜索**没有可用的混合端点**（/luna/pc/search/mixed 实测 1000004，见 §18），按 tab 分别请求。APP 的旧路径 `/luna/search/{track,album,artist,playlist}` 已于 2026-11 起只返回 `extra.empty_search: 1`，不要再用；目前可用的是官方网页端的 PC 搜索：
 
-    GET https://api.qishui.com/luna/pc/search/track?q=%E5%91%A8%E6%9D%B0%E4%BC%A6&cursor=0
-    GET https://api.qishui.com/luna/pc/search/album?q=...&cursor=0
-    GET https://api.qishui.com/luna/pc/search/artist?q=...&cursor=0
-    GET https://api.qishui.com/luna/pc/search/playlist?q=...&cursor=0
-    User-Agent: LunaPC/3.0.0(290101097)
+    GET https://api.qishui.com/luna/pc/search/track?q=%E5%91%A8%E6%9D%B0%E4%BC%A6&cursor=0&count=20
+        &search_id=<uuid v4>&search_method=input
+        &debug_params=&from_search_id=&search_scene=
+        &aid=386088&device_platform=web&channel=pc_web
+    GET https://api.qishui.com/luna/pc/search/album?...
+    GET https://api.qishui.com/luna/pc/search/artist?...
+    GET https://api.qishui.com/luna/pc/search/playlist?...
+    User-Agent: 桌面 Chrome（例如 Mozilla/5.0 ... Chrome/134.0.0.0 Safari/537.36）
 
 | 参数 | 说明 |
 | --- | --- |
 | q | 关键词（必填）。缺省或空串 → 200 但只有 status_info+extra，无 result_groups |
 | cursor | 偏移量字符串，首页传 0 或 空串；下一页用响应里的 next_cursor |
-| count | **被忽略**：传 5 仍返回 20 条。页大小固定 20 |
-| aid | 可选；匿名可搜，不需要 Cookie |
+| count | 每页条数，实测 20 生效；插件固定用 20 |
+| search_id | 每次搜索一个 UUID v4，取自官方网页/客户端；只是搜索会话标识，不参与签名 |
+| search_method | `input`（输入框搜索）；联想/点击建议时官方会传 `sug` |
+| aid / device_platform / channel | 固定 `386088` / `web` / `pc_web` |
+| debug_params / from_search_id / search_scene | 空字符串即可 |
 
-响应结构（fixtures/search_track.json 等）：
+匿名可搜，不需要 Cookie，也不需要 X-Helios / X-Medusa 签名。
+
+响应结构（搜索结果字段与旧 APP 版不同，以本条为准；仓库 fixtures/search_*.json 是旧 APP 形状，仅作历史参考）：
 
     {
       "status_info": { "now": 1794212455, "now_ts_ms": 1794212455184 },
@@ -240,26 +248,23 @@
         "next_cursor": "20",
         "has_more": true,
         "data": [
-          { "meta": { "item_type": "track", "quick_play_info": { "...": "artist 结果才有" } },
-            "entity": { "track_wrapper": { "track": { "...": "完整 track" }, "limited_free_info": null } } },
+          { "meta": { "...": "..." }, "entity": { "track": { "...": "完整 track" } } },
           "…（其余条目省略，结构相同）"
-        ],
-        "display_view_all": false, "display_title": "", "description": "", "bottom_desc": "", "display_type": ""
-      }],
-      "extra": { "log_extra": "{\"query_intention_type\":\"music_related\"}" }
+        ]
+      }]
     }
 
 各 tab 的 result_groups[0].id 与 entity 键：
 
 | 端点 | group id | entity | 说明 |
 | --- | --- | --- | --- |
-| search/track | tracks | {track_wrapper:{track, limited_free_info}} | 完整 track，可直接播放 |
+| search/track | tracks | {track} | 完整 track，可直接播放 |
 | search/album | albums | {album} | 精简实体：id/name/artists/company/count_tracks/url_cover/release_date/intro |
-| search/artist | artists | {artist} | 精简：id/name/count_albums/count_tracks/stats/state/url_avatar/simple_display_name/full_display_name；meta.quick_play_info 含 deeplink |
+| search/artist | artists | {artist} | 精简：id/name/count_albums/count_tracks/stats/state/url_avatar/simple_display_name/full_display_name |
 | search/playlist | playlists | {playlist} | 精简：id/title/url_cover/count_tracks/stats/owner/type/from_feed/resource_cnt |
 
-- 耗时约 0.9–1.0 s/次，响应 115–128 KB；输入防抖 300–500 ms + 结果缓存 5 min。
-- 翻页：has_more && next_cursor 时把 cursor 设为 next_cursor 再请求；无需 search_id。
+- 耗时约 0.9–1.0 s/次；输入防抖 300–500 ms + 结果缓存 5 min。
+- 翻页：has_more && next_cursor 时把 cursor 设为 next_cursor 再请求；每次请求换新的 search_id。
 - 空关键词不要请求（省流量）；result_groups 可能不存在，取数据前判空。
 
 ### 2.2 搜索联想 ✅
@@ -936,10 +941,10 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | 3 | 电台列表 | POST | {PC}/luna/pc/discover | {first_request:true,pc_new_discover_request:true} | 否 | 否 | ✅ |
 | 4 | 个性化歌曲流 | POST | {PC}/luna/pc/feed/song-tab | {cursor,count} | 否 | 否 | ⚠️ |
 | 5 | 场景模式 | POST | {PC}/luna/feed/mode | {} | 否 | 否 | ⚠️ |
-| 6 | 搜索-歌曲 | GET | {PC}/luna/pc/search/track | q,cursor | 否 | 可选 | ✅ |
-| 7 | 搜索-专辑 | GET | {PC}/luna/pc/search/album | q,cursor | 否 | 可选 | ✅ |
-| 8 | 搜索-艺人 | GET | {PC}/luna/pc/search/artist | q,cursor | 否 | 可选 | ✅ |
-| 9 | 搜索-歌单 | GET | {PC}/luna/pc/search/playlist | q,cursor | 否 | 可选 | ✅ |
+| 6 | 搜索-歌曲 | GET | {PC}/luna/pc/search/track | q,cursor,count + 网页端参数 | 否 | 可选 | ✅ |
+| 7 | 搜索-专辑 | GET | {PC}/luna/pc/search/album | q,cursor,count + 网页端参数 | 否 | 可选 | ✅ |
+| 8 | 搜索-艺人 | GET | {PC}/luna/pc/search/artist | q,cursor,count + 网页端参数 | 否 | 可选 | ✅ |
+| 9 | 搜索-歌单 | GET | {PC}/luna/pc/search/playlist | q,cursor,count + 网页端参数 | 否 | 可选 | ✅ |
 | 10 | 搜索联想 | GET | {PC}/luna/pc/sug | q | 否 | 可选 | ✅ |
 | 11 | 播放（明文 URL） | GET | {APP}/luna/h5/seo_track | track_id,device_platform=web，Web UA | 可选 | 否 | ✅（覆盖 ⚠️） |
 | 12 | 播放元数据/歌词 | GET | {PC}/luna/pc/track_v2 | track_id,media_type,queue_type | **否** | 否 | ✅ |
