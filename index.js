@@ -1874,6 +1874,75 @@ async function pcWebSearch(type, params) {
   return payloadFrom(await fetchText(url, { ua: WEB_UA }));
 }
 
+// 官方单曲搜索（/luna/pc/search/track）只匹配歌曲标题，而且实测会间歇性返回
+// 空 body：查询纯艺人名（Fall Out Boy、Coldplay）时官方直接没有 song 结果，
+// 艺人/专辑/歌单却有；有时连标题搜索也拿不到数据。这里用官方综合搜索
+// /luna/pc/search/all 兜底：若查询完整等于某个官方艺人名，读该艺人官方曲目
+// 页；否则只用综合搜索的 tracks 组，并只保留标题/歌手确实命中查询的条目。
+// 所有曲目仍然来自汽水官方接口，不做相似/关联推断，也不伪造搜索排名。
+function searchName(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function searchArtistFromAll(data, query) {
+  const wanted = searchName(query);
+  if (!wanted) return null;
+  const groups = Array.isArray(data.result_groups) ? data.result_groups : [];
+  for (const group of groups) {
+    for (const item of (group && group.data) || []) {
+      const artist = item && item.entity ? item.entity.artist : null;
+      if (!artist || artist.id === undefined || artist.id === null) continue;
+      const names = [artist.name, artist.simple_display_name, artist.full_display_name];
+      if (names.some((name) => searchName(name) === wanted)) return artist;
+    }
+  }
+  return null;
+}
+
+function searchTrackMatches(query, raw) {
+  const wanted = searchName(query);
+  if (!wanted || !raw) return false;
+  const names = [raw.name, raw.title].concat((Array.isArray(raw.artists) ? raw.artists : []).map((artist) => artist && artist.name));
+  return names.some((name) => searchName(name).indexOf(wanted) >= 0);
+}
+
+function searchTitleMatches(query, raw) {
+  const wanted = searchName(query);
+  if (!wanted || !raw) return false;
+  return [raw.name, raw.title].some((name) => searchName(name).indexOf(wanted) >= 0);
+}
+
+async function searchAllFallback(query, offset) {
+  const data = await pcWebSearch("all", { q: query, cursor: "0", count: String(SEARCH_PAGE) });
+  const groups = data.result_groups || [];
+  const group = groups.find((item) => item && item.id === "tracks") || {};
+  const rawTracks = (group.data || []).map((item) => rawTrackOf(item && item.entity)).filter(Boolean);
+  // 曲名命中优先于艺人名：搜「晴天」时应该给歌名含「晴天」的歌，而不是某个
+  // 恰好叫「晴天」的艺人的全部曲目。
+  const titleHits = rawTracks.filter((raw) => searchTitleMatches(query, raw)).slice(0, 6);
+  if (titleHits.length) return { tracks: trackList(titleHits), more: false };
+  const artist = searchArtistFromAll(data, query);
+  if (artist) {
+    const page = await pc("/luna/pc/artists/" + encodeURIComponent(String(artist.id)) + "/tracks", {
+      params: { cursor: String(offset), count: String(SEARCH_PAGE) },
+    });
+    const raw = Array.isArray(page.tracks) ? page.tracks : [];
+    return {
+      tracks: trackList(raw.slice(0, SEARCH_PAGE)),
+      more: raw.length > SEARCH_PAGE || !!page.has_more,
+    };
+  }
+  // /all 的 tracks 组没有分页，翻页时不要再重复同一批结果。
+  if (offset > 0) return { tracks: [], more: false };
+  const tracks = [];
+  for (const raw of rawTracks) {
+    if (!searchTrackMatches(query, raw)) continue;
+    const mapped = toTrack(raw);
+    if (mapped) tracks.push(mapped);
+  }
+  return { tracks, more: false };
+}
+
 export async function search({ query, kind, offset }) {
   const text = String(query || "").trim();
   const type = SEARCH_KINDS[kind];
@@ -1882,9 +1951,10 @@ export async function search({ query, kind, offset }) {
   result[type.out] = [];
   result.more = false;
   if (!text) return result;
+  const start = pageOffset(offset);
   const data = await pcWebSearch(type.type, {
     q: text,
-    cursor: String(pageOffset(offset)),
+    cursor: String(start),
     count: String(SEARCH_PAGE),
   });
   const group = (data.result_groups || [])[0] || {};
@@ -1895,6 +1965,16 @@ export async function search({ query, kind, offset }) {
     if (mapped) result[type.out].push(mapped);
   }
   result.more = !!group.has_more;
+  if (type.type === "track" && result.tracks.length === 0) {
+    try {
+      const fallback = await searchAllFallback(text, start);
+      result.tracks = fallback.tracks;
+      result.more = fallback.more;
+    } catch (error) {
+      // 综合搜索/艺人曲目只是在单曲搜索为空时补 Songs 栏；失败就保留官方
+      // 的空结果，不能让兜底把搜索本身变成错误。
+    }
+  }
   return result;
 }
 

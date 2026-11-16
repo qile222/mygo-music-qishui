@@ -40,7 +40,7 @@
 ### MVP 最短路径（建议先实现这 6 条）
 
 1. 首页/榜单：<code>POST {APP}/luna/discover</code>（一次请求同时拿到歌单推荐和 3 个榜单）。
-2. 搜索：<code>GET {PC}/luna/pc/search/{track,album,artist,playlist}</code>。
+2. 搜索：<code>GET {PC}/luna/pc/search/{track,album,artist,playlist}</code>；单曲为空时用 <code>GET {PC}/luna/pc/search/all</code> 兜底（见 §2.1.1）。
 3. 播放：<code>GET {APP}/luna/h5/seo_track</code> → <code>track_player.video_model</code> 里的明文 M4A URL。
 4. 我喜欢：<code>GET {PC}/luna/pc/me/playlist</code>(cookie+aid) 找 <code>type=1</code> → <code>GET {PC}/luna/pc/playlist/detail</code>(cookie+aid) 取曲目。
 5. 歌单详情：<code>GET {PC}/luna/pc/playlist/detail</code>，**不传 count 一次拿全**。
@@ -214,9 +214,9 @@
 
 ## 2. 搜索
 
-### 2.1 四个独立搜索端点 ✅
+### 2.1 四个独立搜索端点 + 官方综合搜索兜底 ✅
 
-搜索**没有可用的混合端点**（/luna/pc/search/mixed 实测 1000004，见 §18），按 tab 分别请求。APP 的旧路径 `/luna/search/{track,album,artist,playlist}` 已于 2026-11 起只返回 `extra.empty_search: 1`，不要再用；目前可用的是官方网页端的 PC 搜索：
+四个 tab 仍按端点分别请求。APP 的旧路径 `/luna/search/{track,album,artist,playlist}` 已于 2026-11 起只返回 `extra.empty_search: 1`，不要再用；旧 `/luna/pc/search/mixed` 也始终 1000004。目前可用的是官方网页端的 PC 搜索；此外 `/luna/pc/search/all` 是官方综合搜索端点，可在单曲搜索为空时兜底（见 §2.1.1）。
 
     GET https://api.qishui.com/luna/pc/search/track?q=%E5%91%A8%E6%9D%B0%E4%BC%A6&cursor=0&count=20
         &search_id=<uuid v4>&search_method=input
@@ -266,6 +266,23 @@
 - 耗时约 0.9–1.0 s/次；输入防抖 300–500 ms + 结果缓存 5 min。
 - 翻页：has_more && next_cursor 时把 cursor 设为 next_cursor 再请求；每次请求换新的 search_id。
 - 空关键词不要请求（省流量）；result_groups 可能不存在，取数据前判空。
+- 2026-11-16 晚间实测：`/search/track` 对纯歌手名（Fall Out Boy、Coldplay）返回空 result_groups；有时对普通标题也返回 HTTP 200 + 空 body。同一时间 `/luna/pc/search/all` 正常。单曲搜索需要 §2.1.1 的官方兜底。
+
+### 2.1.1 综合搜索 /all（单曲搜索兜底）⚠️
+
+    GET https://api.qishui.com/luna/pc/search/all?q=Fall%20Out%20Boy&cursor=0&count=20
+        &search_id=<uuid v4>&search_method=input
+        &debug_params=&from_search_id=&search_scene=
+        &aid=386088&device_platform=web&channel=pc_web
+
+- 参数与 §2.1 相同，匿名可用，不需要签名。返回 `result_groups`，组顺序不固定，可能包含 `top_results`、`tracks`、`playlists`、`albums`、`artists`。
+- 每组数量固定且很少，实测：tracks 最多 6、playlists 3、albums 3、artists 3–4、`has_more:false`，没有可用分页；`cursor=10` 时 tracks/playlists 组直接消失。
+- 单曲兜底规则（插件已实现）：
+  1. 先取 `tracks` 组，若有条目标题包含查询，最多取 6 首，`more=false`。曲名命中优先，避免搜「晴天」时把某个恰好叫「晴天」的艺人的全部曲目当成搜索结果。
+  2. 否则若 `top_results` 或 `artists` 组里有艺人 name / simple_display_name / full_display_name 与查询完全相等（忽略大小写和多余空白），取该艺人 id，走官方 `GET {PC}/luna/pc/artists/{id}/tracks?cursor=<offset>&count=20`。艺人曲目接口的 cursor 是偏移量，插件每页取 20 条，可继续翻页。
+  3. 再否则只取 `tracks` 组，保留标题或歌手名包含查询的条目，最多 6 首，`more=false`。
+  4. 兜底失败或没有匹配就返回空结果，不报错、不编造。
+- 所有条目仍来自汽水官方当次返回；不做相似/关联推断，也不把综合搜索或艺人曲目包装成官方单曲搜索排名。
 
 ### 2.2 搜索联想 ✅
 
@@ -871,7 +888,7 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | 1 | **seo_track 曲目覆盖不是 100%**：20 首实测 3 首无 track_player，重试/换 UA/换 device_platform 都无效 | 部分歌单里个别曲目无法播放 | 判空置灰 + 提示；这是版权/地区限制，非抖动 |
 | 2 | VIP-only 曲目只给试听片段（实测 60.001s / 30–60s 不等） | 用户以为能听整曲 | 用 video_duration vs duration 判断并标「试听」；**不要尝试解密** |
 | 3 | 试听片段实际起点未知（preview.start 60000ms 但无法验证） | 试听内容可能从曲中开始，进度条映射不准 | 按 0:00 播放并标试听；或直接展示为「试听片段」不显示精确进度 |
-| 4 | /luna/pc/search/mixed 始终 1000004（带完整 pcSearchParams 也不行） | 无法做「综合」搜索 tab | 用四个独立端点拼多 tab；不要依赖 mixed |
+| 4 | /luna/pc/search/mixed 始终 1000004（带完整 pcSearchParams 也不行）；/search/track 对纯歌手名可能为空，且 2026-11-16 晚曾间歇返回空 body | 无法做分页「综合」搜索；Songs 按歌手名可能为空 | 用四个独立端点拼多 tab；单曲为空时用 /luna/pc/search/all 兜底（§2.1.1）；不要依赖 mixed |
 | 5 | 写操作（收藏/评论/歌单编辑）全部需要签名 | 插件只能只读 | 不实现；UI 不要提供无效按钮 |
 | 6 | 收藏专辑非空响应未实测（示例账号为空） | 非空账号的展示字段不确定 | 按参考结构兜底 + 空态处理；上线前用有收藏的账号补测 |
 | 7 | comments count 在不同 host/Cookie 下不一致 | 显示的总数可能不准 | 只作参考，翻页用 has_more |
@@ -961,6 +978,7 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | 23 | 评论 | GET | {APP}/luna/comments 或 {PC}/luna/pc/comments | group_id,group_type=0,cursor,count,image_strategy=2 | 可选 | 匿名即可（PC 签名后仍可读） | ✅ |
 | 24 | 歌词 | 同 11/12 | lyric.content | — | 可选 | — | ✅ |
 | 25 | 媒体加密流（不可播） | POST | {APP}/luna/media-player 或 {PC}/luna/pc/track_v2 | — | — | — | ⚠️ 仅元数据 |
+| 25a | 搜索-综合兜底 | GET | {PC}/luna/pc/search/all | q + 同一套网页端参数 | 否 | 可选 | ⚠️ 每组固定少量、无分页 |
 
 ## 附录 A2：官方签名写接口（2026-11-09 实测，需 Cookie + X-Helios/X-Medusa + X-SS-STUB）
 
