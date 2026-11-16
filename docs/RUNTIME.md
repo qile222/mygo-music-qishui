@@ -310,7 +310,7 @@ plugins/qishui-lite/
 
 ```
 Account      { id, name, imageUrl?, page? }
-Track        { id, name, artists?, album, duration?, url?, unavailable?, showId?, description?, published? }
+Track        { id, name, artists?, album, duration?, likeCount?, url?, unavailable?, showId?, description?, published? }
 Artist       { id, name, imageUrl?, following? }
 Album        { id, name, imageUrl?, artists?, released?, saved? }
 Playlist     { id, name, imageUrl?, description?, owner?, trackCount?, mine?, saved?, fixed?, tracks? }
@@ -338,7 +338,7 @@ RemoteState  { playing, trackId?, position, duration, volume, device? }
 
 要点：
 
-- `Track`：`id` + `name` + `album` 必备（`album` 至少给 `{id, name}`）；`duration` 是**毫秒**；`url` 是"源站歌曲页"链接（分享/复制链接用），不是音频地址；`unavailable: true` = 无版权/不可播，UI 会置灰并跳过；播客单集用 `showId`/`description`/`published`（`published` 是 ISO 时间字符串）。
+- `Track`：`id` + `name` + `album` 必备（`album` 至少给 `{id, name}`）；`duration` 是**毫秒**；`likeCount` 是官方收藏/喜欢数（汽水的 `track.stats.count_collected`），只在播放条爱心旁展示，缺省或 0 时不显示，插件不得用播放量、评论数或本地计数替代；`url` 是"源站歌曲页"链接（分享/复制链接用），不是音频地址；`unavailable: true` = 无版权/不可播，UI 会置灰并跳过；播客单集用 `showId`/`description`/`published`（`published` 是 ISO 时间字符串）。
 - `Album.released` 是字符串（如 `"2024-01-01"` 或年份），app 只展示。
 - `Playlist.fixed`：true = 固定顺序歌单（不允许拖动排序）。
 - `Section` 里同一个 `Browse` 可以有多种横向列表：tracks/albums/artists/playlists/shows/stations/links，各列表并行展示；`morePage` 是"查看全部"跳转的 `page` 名（点击调用 `browse({page})`）；`refresh` 非空时该 section 标题右侧显示刷新图标而不是 See All，点击调用 `refreshBrowse({page: refresh})`；`home` / `home:<what>` 刷新 Home，`<page>:<what>` 刷新该 Browse 页并替换整页（app 0.1.28+）；`empty` 是非空时的占位文案（列表为空时显示）；`pageTitle`/`subtitle` 用于卡片详情页标题。`noRefresh` 为 true 表示这一页没有可换的新内容（如固定榜单），app 不显示页面级刷新按钮（0.1.37+）。

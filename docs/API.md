@@ -851,7 +851,7 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 
 ### 17.3 其它
 
-- track 实体字段很多（album, artists, duration, name, preview, state, stats, vid, label_info, bit_rates, audition_info, limited_free_info, playable_range, media_type, chorus, colors, lang_codes, ...）；渲染只需 id/name/duration/artists/album/state/label_info。
+- track 实体字段很多（album, artists, duration, name, preview, state, stats, vid, label_info, bit_rates, audition_info, limited_free_info, playable_range, media_type, chorus, colors, lang_codes, ...）；渲染只需 id/name/duration/artists/album/state/label_info。stats.count_collected 是官方收藏数（播放条爱心旁展示用），stats.count_comment 是评论数；没有 stats 时不要用其它字段替代。
 - label_info.only_vip_playable = 仅 VIP 可播全曲（试听仍可能可用）；quality_map 给出各音质条件（need_vip）。
 - 可空字段：limited_free_info 常为 null；count_tracks 可能为 null（抖音收藏歌单）；user_digged、preview、artist_profile 可能为 null。
 - id 都是字符串（如 "6778775242320906241"），不要转 number（超过 2^53）。
