@@ -18,6 +18,9 @@ m4a 里，插件在自身进程内解密后交给宿主播放。除了系统 bas
    stdin/stdout 一个请求 → 一行签名结果（几毫秒），整个请求-响应交换串行化，避免并发
    点歌抢输出。应用启动/登录后 `account()`/`home()` 会在后台预热进程。签名结果按
   “URL + 请求头”缓存在内存里 10 分钟；若服务端返回 200 空 body，则清缓存重签一次。
+  `track_v2` 偶尔也会返回只有试听、甚至没有音频的响应；此时插件清签名再请求一次，
+  并且只在响应可完整播放时把 track 信息缓存 10 分钟。试听/空结果不缓存，避免同一首歌
+  被内存缓存锁在「无法播放」状态。
 2. `track_player.video_model` 是对象，含 `video_duration` 与 `video_list[]`：
    每项有 `main_url`、`video_meta.quality`（medium/higher/highest）、`bitrate`、`size`、
    `encrypt_info{encrypt, kid, spade_a, encryption_method:"cenc-aes-ctr"}`。

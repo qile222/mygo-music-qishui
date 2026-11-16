@@ -4054,15 +4054,49 @@ const TRACK_CACHE_TTL = 10 * 60 * 1000;
 const TRACK_CACHE_LIMIT = 12;
 const trackV2Cache = {};
 
+function fullTrackInfo(data) {
+  const info = playbackOf(data);
+  if (!info.videos.length || servedPreview(info.track, info.model)) return null;
+  return info;
+}
+
 async function trackV2(trackID) {
   const saved = trackV2Cache[trackID];
   if (saved && Date.now() - saved.at < TRACK_CACHE_TTL) return saved.data;
-  const data = await signedPC("/luna/pc/track_v2", {
-    track_id: trackID,
-    media_type: "track",
-    queue_type: "favorite_track_playlist",
-    scene_name: "library",
-  });
+  const request = function () {
+    return signedPC("/luna/pc/track_v2", {
+      track_id: trackID,
+      media_type: "track",
+      queue_type: "favorite_track_playlist",
+      scene_name: "library",
+    });
+  };
+  let data = await request();
+  let full = null;
+  try {
+    full = fullTrackInfo(data);
+  } catch (error) {
+    full = null;
+  }
+  if (!full) {
+    // 签名接口偶尔会给出只有试听、甚至没有音频的响应；同一请求通常能拿到整曲。
+    // 换一次签名再问一次，但绝不把这种结果缓存十分钟，否则这首歌会在内存缓存
+    // 过期或 App 重启前一直显示无法播放。
+    clearSignatures();
+    try {
+      const again = await request();
+      const againFull = fullTrackInfo(again);
+      if (againFull) {
+        data = again;
+        full = againFull;
+      } else if (!full) {
+        data = again;
+      }
+    } catch (error) {
+      // 第二次失败时保留第一次的响应，让上层回退到网页接口
+    }
+  }
+  if (!full) return data;
   const keys = Object.keys(trackV2Cache);
   if (keys.length >= TRACK_CACHE_LIMIT) delete trackV2Cache[keys[0]];
   trackV2Cache[trackID] = { at: Date.now(), data };
