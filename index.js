@@ -3386,6 +3386,10 @@ const QUALITY_ORDER = {
   standard: ["medium", "higher", "highest"],
 };
 const AUDIO_HOSTS = ["douyinvod.com", "douyincdn.com", "douyinpic.com", "qishui.com"];
+// 下载整首音频的上限，按实际下发的档位给：无损一首 20–30MB，原来统一 20 秒
+// 的上限在慢网络下会被撑爆，整首被判成「不可用」后被宿主跳过。
+const AUDIO_TIMEOUT = { lossless: 120000, hi_res: 60000, highest: 45000, higher: 30000, medium: 20000 };
+const REQUESTED_TIMEOUT = { lossless: 120000, high: 30000, standard: 20000 };
 
 function allowedAudioHost(url) {
   const match = /^https:\/\/([^\/?#]+)/i.exec(String(url || ""));
@@ -3995,7 +3999,11 @@ async function deliverEncrypted(picked, trackID, requested, run) {
   if (run) run.signal.addEventListener("abort", onAbort, { once: true });
   try {
     assertPlaybackRun(run);
-    const encrypted = await fetchBytes(picked.main_url, 20000, run && run.signal);
+    const encrypted = await fetchBytes(
+      picked.main_url,
+      AUDIO_TIMEOUT[String(meta.quality || "")] || REQUESTED_TIMEOUT[requested] || 30000,
+      run && run.signal
+    );
     assertPlaybackRun(run);
     const plain = decryptM4A(encrypted, String(encrypt.spade_a || ""));
     // base64 分块边编边写：每块字节数是 3 的倍数，拼接后仍是合法 base64，
