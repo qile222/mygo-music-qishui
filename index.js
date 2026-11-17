@@ -39,6 +39,9 @@ const PAGE_SIZE = 50;
 const ARTIST_TRACK_PAGE_SIZE = 1000;
 const ARTIST_TRACK_PAGES = 10;
 const ARTIST_TRACK_LIMIT = 1000;
+// 艺人曲目接口的 cursor 就是偏移量，count 最小 50：宿主先要第一页，
+// 再按偏移继续取，长艺人页不用等全量。
+const ARTIST_SONGS_PAGE = 50;
 const ARTIST_ALBUM_PAGE_SIZE = 500;
 const ARTIST_ALBUM_PAGES = 10;
 const ARTIST_ALBUM_LIMIT = 1000;
@@ -883,7 +886,10 @@ function toArtist(raw) {
   const id = raw.id === undefined || raw.id === null ? "" : String(raw.id);
   const name = raw.name || raw.simple_display_name || "";
   if (!id && !name) return null;
-  return { id, name, imageUrl: coverURL(raw.url_avatar || raw.avatar_url, 240) };
+  const artist = { id, name, imageUrl: coverURL(raw.url_avatar || raw.avatar_url, 240) };
+  const count = Number(raw.count_tracks);
+  if (Number.isFinite(count) && count > 0) artist.trackCount = Math.floor(count);
+  return artist;
 }
 
 function artistsOfTrack(track) {
@@ -2364,6 +2370,46 @@ export async function artist({ id }) {
   const artist = toArtist(info);
   artist.following = following.has(artistID);
   return { artist: artist, tracks: tracks.slice(0, ARTIST_TRACK_LIMIT), albums: albums };
+}
+
+// 艺人页分两段返回：艺人和专辑先给宿主，歌曲按偏移分页，宿主先渲染第一页，
+// 剩下的在后台继续取，几百首的艺人页也不用等全量才出现。
+export async function artistInfo({ id }) {
+  const artistID = asID(id);
+  const [results, following, rawAlbums] = await Promise.all([
+    pc("/luna/pc/artists/" + artistID),
+    followedArtistIDsSafe(),
+    collectArtistAlbums(artistID),
+  ]);
+  const info = results.artist_info;
+  if (!info) throw new Error(tr("Couldn't find this artist"));
+  const artist = toArtist(info);
+  if (artist) artist.following = following.has(artistID);
+  const albums = [];
+  const seen = new Set();
+  const push = (list) => {
+    for (const raw of Array.isArray(list) ? list : []) {
+      const item = toAlbum(raw);
+      if (!item || !item.id || seen.has(item.id)) continue;
+      seen.add(item.id);
+      albums.push(item);
+    }
+  };
+  push(results.hot_albums);
+  push(rawAlbums);
+  return { artist, albums };
+}
+
+// 一页艺人歌曲。cursor 是偏移量，按宿主给的 offset 直接取这一页。
+export async function artistSongs({ id, offset }) {
+  const artistID = asID(id);
+  const at = Math.max(0, Math.floor(Number(offset) || 0));
+  const data = await pc("/luna/pc/artists/" + artistID + "/tracks", {
+    params: { cursor: String(at), count: String(ARTIST_SONGS_PAGE) },
+    timeoutMs: 20000,
+  });
+  const tracks = trackList(data.tracks);
+  return { tracks: tracks, more: tracks.length >= ARTIST_SONGS_PAGE };
 }
 
 async function myPlaylists() {
