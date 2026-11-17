@@ -919,6 +919,9 @@ function toTrack(raw) {
     // 官方收藏数：track.stats.count_collected。没有这个字段就是 0，宿主不显示，
     // 不用播放量、评论数或本地统计替代。
     likeCount: Number(raw.stats && raw.stats.count_collected) || 0,
+    // 官方评论数：track.stats.count_comment。宿主可先用它显示数字，避免评论
+    // 还没加载时按钮暂时没有数字；不用本地统计替代。
+    commentCount: Number(raw.stats && raw.stats.count_comment) || 0,
     // 分享/复制链接用源站歌曲页，不是音频地址。
     url: "https://www.douyin.com/qishui/song/" + id,
   };
