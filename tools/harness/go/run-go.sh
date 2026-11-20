@@ -8,7 +8,13 @@
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 PLUGIN=${1:-"$HERE/../../.."}
-MYGO_SRC=${MYGO_SRC:-/tmp/qsresearch/mygo-music}
+if [ -z "${MYGO_SRC:-}" ]; then
+  if [ -f "$HERE/../../../../mygo-music/go.mod" ]; then
+    MYGO_SRC=$(cd "$HERE/../../../../mygo-music" && pwd)
+  else
+    MYGO_SRC=/tmp/qsresearch/mygo-music
+  fi
+fi
 
 if [ ! -f "$MYGO_SRC/go.mod" ] || [ ! -d "$MYGO_SRC/internal/plugin" ]; then
   echo "run-go.sh: MYGO_SRC=$MYGO_SRC does not look like the mygo-music source tree" >&2

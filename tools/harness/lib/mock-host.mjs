@@ -91,6 +91,25 @@ export function createMockHost(options) {
         }
         const cipher = crypto.createCipheriv("aes-" + keyLen * 8 + "-ecb", Buffer.from(keyText, "utf8"), null);
         return Buffer.concat([cipher.update(String(text), "utf8"), cipher.final()]).toString("hex");
+      },
+      aesCtrXor: function (key, iv, buf, offset, length) {
+        const keyBytes = viewOf(key);
+        const ivBytes = viewOf(iv);
+        if (!ivBytes.length || ivBytes.length > 16) throw new Error("invalid IV length");
+        const raw = viewOf(buf);
+        const slice = windowOf(raw, offset, length);
+        if (!slice.length) return undefined;
+        const ctr = Buffer.alloc(16, 0);
+        Buffer.from(ivBytes.buffer, ivBytes.byteOffset, ivBytes.byteLength).copy(ctr, 0);
+        const decipher = crypto.createCipheriv("aes-" + keyBytes.byteLength * 8 + "-ctr", Buffer.from(keyBytes.buffer, keyBytes.byteOffset, keyBytes.byteLength), ctr);
+        const xored = Buffer.concat([decipher.update(Buffer.from(slice.buffer, slice.byteOffset, slice.byteLength)), decipher.final()]);
+        slice.set(xored);
+        return undefined;
+      },
+      base64Encode: function (buf, offset, length) {
+        const raw = viewOf(buf);
+        const slice = windowOf(raw, offset, length);
+        return Buffer.from(slice.buffer, slice.byteOffset, slice.byteLength).toString("base64");
       }
     },
     removeDataDir: function (name) {
@@ -143,4 +162,18 @@ function loadTranslations(pluginDir, language) {
   } catch (err) {
     return {};
   }
+}
+
+function viewOf(input) {
+  if (input instanceof ArrayBuffer) return new Uint8Array(input);
+  if (ArrayBuffer.isView(input)) return new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+  throw new TypeError("harness: expected TypedArray or ArrayBuffer");
+}
+
+function windowOf(bytes, offset, length) {
+  const start = offset === undefined || offset === null ? 0 : Number(offset);
+  if (start < 0 || start > bytes.byteLength) throw new RangeError("offset out of range");
+  const count = length === undefined || length === null ? bytes.byteLength - start : Number(length);
+  if (count < 0 || start + count > bytes.byteLength) throw new RangeError("length out of range");
+  return bytes.subarray(start, start + count);
 }

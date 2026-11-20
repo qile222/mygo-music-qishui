@@ -1,6 +1,6 @@
 # MyGo Music 插件运行时契约（0.1.22）
 
-> 适用对象：为 MyGo Music 编写 stream 型音乐插件（本仓库是汽水音乐 Lite 插件）。
+> 适用对象：为 MyGo Music 编写 stream 型音乐插件（本仓库是汽水音乐 `qishui` 插件）。
 > 核对依据：MyGo Music 源码 `mygo-music`（MIT）commit `1af0d8e`，版本 `0.1.22`；JS 运行时 moejs `v0.1.0-alpha.11`；本机安装版 `/Applications/MyGo Music.app`（0.1.22）实测。
 > 文中 `internal/...` 均指 MyGo Music 源码里的路径，行号为 0.1.22 源码行号。汽水 API 的字段/签名见 [API.md](API.md)。
 > 本文可独立于 API.md 使用；契约信息全部来自 MIT 许可的 mygo-music，不引用 AGPL 的 lane-qishui。
@@ -47,10 +47,11 @@
 安装后的目录结构示例：
 
 ```
-plugins/qishui-lite/
+plugins/qishui/
   plugin.json
   index.js
   locales/zh-CN.json     # 可选
+  assets/modes/          # 可选静态资源
 ```
 
 ### 1.2 安装来源
@@ -81,7 +82,7 @@ plugins/qishui-lite/
 - `version`：可选，字符串；更新比较按点分整数（可带 `v` 前缀，不接受 `1.2.3-beta` 这类后缀）。
 - `main`：可选，默认 `index.js`；必须是插件目录内的相对路径（`filepath.IsLocal`）；以 `.ts` 结尾时用 TS 编译器，其余按 JS 编译。
 - `minAppVersion`：可选；格式同 `0.1.8`（点分整数，可 `v` 前缀）。`appVersion` 为空（开发构建）时任何插件都加载；安装版低于该版本返回 `NeedsNewerApp`，界面提示 `<name> needs MyGo Music <ver> or later. Update MyGo Music first.`。
-- **注意**：本仓库 `plugin.json` 当前 `minAppVersion` 是 `0.1.20`，而 fMP4（分片 MP4）直链播放依赖 **0.1.21+**。若汽水 stream 走 fMP4/DASH，应把 `minAppVersion` 提到 `0.1.21`（`plugin.json` 不归本文档修改，交给 Lead 决策）。
+- **注意**：本仓库 `plugin.json` 当前 `minAppVersion` 是 `0.1.22`（已满足 0.1.21+ 的 fMP4 / FLAC-in-MP4 播放与 0.1.22 的 `ErrSetup` 原因展示）。
 
 ### 1.5 相关版本行为（CHANGELOG 摘）
 
@@ -261,7 +262,9 @@ plugins/qishui-lite/
 | `playlist` | `{id: string}` | `Playlist` | 歌单详情（全量；宿主没有 `playlistPage` 时使用） |
 | `playlistPage` | `{id: string, offset: number}` | `Playlist` | 可选：歌单分页（0.1.25+）。`offset` 为已加载曲目数，返回本页 `tracks` 并设 `more` |
 | `album` | `{id: string}` | `AlbumPage` | 专辑页 |
-| `artist` | `{id: string}` | `ArtistPage` | 歌手页 |
+| `artist` | `{id: string}` | `ArtistPage` | 歌手页（全量；宿主未走分段加载时使用） |
+| `artistInfo` | `{id: string}` | `ArtistPage` | 可选：歌手详情与专辑列表（曲目由 `artistSongs` 分页拉取） |
+| `artistSongs` | `{id: string, offset: number}` | `Page` | 可选：歌手曲目按 `offset` 分页 |
 | `liked` | `{offset: number}` | `Page` | "我喜欢的音乐"，分页 |
 | `recent` | 无 | `Track[]` | 最近播放（由 app 维护时也可不实现） |
 | `isLiked` | `{ids: string[]}` | `Record<string, boolean>` | 批量判断是否已喜欢；key 是 track id |
@@ -290,7 +293,7 @@ plugins/qishui-lite/
 | `likeReply` | `{trackId, commentId, replyId, on: boolean}` | 无 | 点赞/取消点赞回复；commentId 为根评论 |
 | `played` | `{id: string}` | 无 | app 在歌曲开始播放时通知（用于计数/推荐）；该调用的普通错误只写日志 |
 | `lyrics` | `{id: string}` | `Lyrics` | 歌词 |
-| `stream` | `{id: string, quality: string}` | `Stream` | **播放地址**；quality ∈ `standard`/`high`/`lossless` |
+| `stream` | `{id: string, quality: string}` | `Stream` | **播放地址**；quality ∈ `standard`/`high`/`lossless`（`stream` 调用超时放宽至 150 秒以容纳整曲解密下载） |
 | `remotePlay` | `{ids: string[], start: number, position: number}` | 无 | 远程播放（仅 `playback: "remote"` 源的设备控制） |
 | `remotePause` / `remoteResume` | 无 | 无 | 远程暂停/继续 |
 | `remoteSeek` | `{position: number}` | 无 | 远程跳转（毫秒） |
@@ -311,9 +314,9 @@ plugins/qishui-lite/
 ```
 Account      { id, name, imageUrl?, page? }
 Track        { id, name, artists?, album, duration?, likeCount?, commentCount?, url?, unavailable?, showId?, description?, published? }
-Artist       { id, name, imageUrl?, following? }
+Artist       { id, name, imageUrl?, following?, trackCount? }
 Album        { id, name, imageUrl?, artists?, released?, saved? }
-Playlist     { id, name, imageUrl?, description?, owner?, trackCount?, mine?, saved?, fixed?, tracks? }
+Playlist     { id, name, imageUrl?, description?, owner?, trackCount?, mine?, saved?, fixed?, tracks?, more? }
 SearchResult { tracks?, albums?, artists?, playlists?, shows?, more? }
 Browse       { title?, subtitle?, imageUrl?, description?, sections?, noRefresh? }
 Section      { title?, tracks?, albums?, artists?, playlists?, shows?, stations?, links?, morePage?, refresh?, empty?, pageTitle?, subtitle? }
@@ -342,7 +345,8 @@ RemoteState  { playing, trackId?, position, duration, volume, device? }
 - `Album.released` 是字符串（如 `"2024-01-01"` 或年份），app 只展示。
 - `Playlist.fixed`：true = 固定顺序歌单（不允许拖动排序）。
 - `Section` 里同一个 `Browse` 可以有多种横向列表：tracks/albums/artists/playlists/shows/stations/links，各列表并行展示；`morePage` 是"查看全部"跳转的 `page` 名（点击调用 `browse({page})`）；`refresh` 非空时该 section 标题右侧显示刷新图标而不是 See All，点击调用 `refreshBrowse({page: refresh})`；`home` / `home:<what>` 刷新 Home，`<page>:<what>` 刷新该 Browse 页并替换整页（app 0.1.28+）；`empty` 是非空时的占位文案（列表为空时显示）；`pageTitle`/`subtitle` 用于卡片详情页标题。`noRefresh` 为 true 表示这一页没有可换的新内容（如固定榜单），app 不显示页面级刷新按钮（0.1.37+）。
-- `Lyrics.lrc`：整段 LRC 文本（app 自己解析）；也可以给结构化的 `lines`（`start/end` 秒，`text`，`translation`，逐字 `words`）；两者可同时给，app 优先用 `lines`（有逐字时更好）。
+- `Account.page`：可选的个人主页 Browse 页名（如 `"me"`），右上角账号菜单显示为「My Page / 我的主页」，点击时调用 `browse({page})`。
+- `Lyrics.lrc`：整段 LRC 文本（app 自己解析）；也可以给结构化的 `lines`（`start/end` 与逐字 `words[].start/end` 均为**毫秒整数 `int64`**，传秒的小数会导致整个 JSON 反序列化失败！另含 `text`、`translation`）；两者可同时给，app 优先用 `lines`（有逐字时更好）。
 - `NavItem.builtin` ∈ `home|liked|savedAlbums|stations|shows`；`icon` ∈ `home|note|album|artist|playlist|radio|podcast|chart|calendar|heart|search|star`。
 - `Stream.type`：`"mp3"`、`"flac"`、`"ogg"`、`"wav"`、`"m4a"`、`"aac"`。**只用于缓存文件命名与"无损"徽标**，实际容器由 app 嗅探字节（见 §6），但请尽量填对。
 - `Stream.size`：精确字节数时填（缓存完整性与预分配用）；`bitRate` 目前 app 不用；`gain`/`peak` 用于 ReplayGain 音量归一化（dB / 线性峰值）。
@@ -428,8 +432,10 @@ storage 是插件私有的持久 KV，适合存 token、设备 id、播放记录
 | --- | --- |
 | `host.crypto.md5(text)` | 返回 32 位小写 hex MD5 |
 | `host.crypto.aesEcbEncrypt(key, text)` | AES-ECB + PKCS#7，key 是原始字符串（在其 UTF-8 字节上做 cipher key），返回 hex 字符串；key 长度非法（非 16/24/32 字节）会抛错 |
+| `host.crypto.aesCtrXor(key, iv, buf, offset?, length?)` | （较新宿主提供）对 `TypedArray`/`ArrayBuffer` 指定窗口原地执行 AES-CTR 异或（counter = `iv` 零填充至 16 字节大端递增）；插件调用前应检测 `typeof host.crypto.aesCtrXor === "function"` 并为旧宿主保留纯 JS 回退 |
+| `host.crypto.base64Encode(buf, offset?, length?)` | （较新宿主提供）对字节窗口执行原生 Base64 编码；同样应保留纯 JS 回退 |
 
-JS 侧没有 WebCrypto，也没有 `crypto` 全局；需要哈希/加密（如汽水签名）只能用这两个（或自己写纯 JS 实现）。
+JS 侧没有 WebCrypto，也没有 `crypto` 全局；需要哈希/加密时优先用 `host.crypto`（对新增方法保留纯 JS 回退）。
 
 ### 4.5 登录相关的两个高级 API
 
@@ -648,7 +654,7 @@ MYGO_SRC=/path/to/mygo-music tools/harness/go/run-go.sh .
 7. **`host.spawn` 的退出码语义**：被信号终止时 Go 的 ExitCode 可能是 -1；`wait()` 返回该值。
 8. **`Stream.headers` 的 `Referer`**：app 不自动设置 Referer，需要就自己填；跨 host 重定向会被删。
 9. **`requestHeaders` 的 `{storage:key}` 在 key 为对象时**：按 JSON 文本发送（会有引号），一般只应存字符串。
-10. **0.1.22 的 fMP4**：0.1.21 起支持，但 `plugin.json` 的 `minAppVersion` 需要自己提到 `0.1.21`；本仓库当前是 `0.1.20`，如果汽水音频是 fMP4/DASH，请 Lead 决策是否提升。
+10. **0.1.22 的 fMP4**：0.1.21 起支持；本仓库 `plugin.json` 的 `minAppVersion` 已设为 `0.1.22`。
 11. **harness 的 Node 版本要求**：`vm.SourceTextModule` 需要 `--experimental-vm-modules`（Node 26 已验证）；Node 18-24 也支持该 flag，但未逐一测试。
 12. **app 的插件日志文件**：确认无日志文件、Finder 启动时 stderr 不可见；若未来版本加了日志，以版本为准。
 

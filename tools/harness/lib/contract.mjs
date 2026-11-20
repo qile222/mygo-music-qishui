@@ -110,6 +110,13 @@ function optNum(obj, key, r, path) {
   }
 }
 
+function optInt(obj, key, r, path) {
+  const value = obj[key];
+  if (value !== undefined && value !== null && !Number.isInteger(value)) {
+    r.errors.push(join(path, key) + ": must be an integer when present");
+  }
+}
+
 function optArr(obj, key, r, path) {
   const value = obj[key];
   if (value === undefined || value === null) return undefined;
@@ -227,7 +234,8 @@ export function validateArtist(v, r, path) {
   reqStr(v, "name", r, path, true);
   optStr(v, "imageUrl", r, path);
   optBool(v, "following", r, path);
-  checkFields(v, ["id", "name", "imageUrl", "following"], r, path);
+  optInt(v, "trackCount", r, path);
+  checkFields(v, ["id", "name", "imageUrl", "following", "trackCount"], r, path);
 }
 
 export function validateArtistArray(v, r, path) {
@@ -271,17 +279,21 @@ export function validateTrack(v, r, path) {
   const artists = optArr(v, "artists", r, path);
   if (artists) each(artists, r, path + ".artists", validateArtist, "artist");
   if (v.duration !== undefined && v.duration !== null) {
-    if (!isNum(v.duration) || v.duration < 0) r.errors.push(path + ".duration: must be milliseconds as a non-negative number");
+    if (!Number.isInteger(v.duration) || v.duration < 0) {
+      r.errors.push(path + ".duration: must be milliseconds as a non-negative integer");
+    }
   } else {
     r.warnings.push(path + ".duration: missing (milliseconds), the UI will show 0:00");
   }
+  optInt(v, "likeCount", r, path);
+  optInt(v, "commentCount", r, path);
   optStr(v, "url", r, path);
   optBool(v, "unavailable", r, path);
   optStr(v, "showId", r, path);
   optStr(v, "description", r, path);
   optStr(v, "published", r, path);
   if (v.source !== undefined) r.warnings.push(path + ".source: filled in by the app, the plugin should omit it");
-  checkFields(v, ["id", "name", "artists", "album", "duration", "url", "unavailable", "showId", "description", "published", "source"], r, path);
+  checkFields(v, ["id", "name", "artists", "album", "duration", "likeCount", "commentCount", "url", "unavailable", "showId", "description", "published", "source"], r, path);
 }
 
 export function validateTrackArray(v, r, path) {
@@ -302,13 +314,14 @@ export function validatePlaylist(v, r, path) {
   optStr(v, "imageUrl", r, path);
   optStr(v, "description", r, path);
   optStr(v, "owner", r, path);
-  optNum(v, "trackCount", r, path);
+  optInt(v, "trackCount", r, path);
   optBool(v, "mine", r, path);
   optBool(v, "saved", r, path);
   optBool(v, "fixed", r, path);
+  optBool(v, "more", r, path);
   const tracks = optArr(v, "tracks", r, path);
   if (tracks) each(tracks, r, path + ".tracks", validateTrack, "track");
-  checkFields(v, ["id", "name", "imageUrl", "description", "owner", "trackCount", "mine", "saved", "fixed", "tracks"], r, path);
+  checkFields(v, ["id", "name", "imageUrl", "description", "owner", "trackCount", "mine", "saved", "fixed", "tracks", "more"], r, path);
 }
 
 export function validatePlaylistArray(v, r, path) {
@@ -340,6 +353,7 @@ export function validateSection(v, r, path) {
   optStr(v, "title", r, path);
   optStr(v, "subtitle", r, path);
   optStr(v, "morePage", r, path);
+  optStr(v, "refresh", r, path);
   optStr(v, "empty", r, path);
   optStr(v, "pageTitle", r, path);
   const tracks = optArr(v, "tracks", r, path);
@@ -358,8 +372,8 @@ export function validateSection(v, r, path) {
   if (links) each(links, r, path + ".links", validateLink, "link");
   const listCount = ["tracks", "albums", "artists", "playlists", "shows", "stations", "links"]
     .filter((key) => Array.isArray(v[key]) && v[key].length > 0).length;
-  if (listCount === 0 && !v.title && !v.morePage) r.warnings.push(path + ": section has no content");
-  checkFields(v, ["title", "subtitle", "morePage", "empty", "pageTitle", "tracks", "albums", "artists", "playlists", "shows", "stations", "links"], r, path);
+  if (listCount === 0 && !v.title && !v.morePage && !v.refresh) r.warnings.push(path + ": section has no content");
+  checkFields(v, ["title", "subtitle", "morePage", "refresh", "empty", "pageTitle", "tracks", "albums", "artists", "playlists", "shows", "stations", "links"], r, path);
 }
 
 export function validateLink(v, r, path) {
@@ -384,12 +398,13 @@ export function validateBrowse(v, r, path) {
   optStr(v, "subtitle", r, path);
   optStr(v, "imageUrl", r, path);
   optStr(v, "description", r, path);
+  optBool(v, "noRefresh", r, path);
   const sections = optArr(v, "sections", r, path);
   if (sections) each(sections, r, path + ".sections", validateSection, "section");
   if (!Array.isArray(v.sections) || v.sections.length === 0) {
     r.warnings.push(path + ".sections: empty or missing, the page will be blank");
   }
-  checkFields(v, ["title", "subtitle", "imageUrl", "description", "sections"], r, path);
+  checkFields(v, ["title", "subtitle", "imageUrl", "description", "sections", "noRefresh"], r, path);
   return r;
 }
 
@@ -501,10 +516,16 @@ export function validateComment(v, r, path) {
   reqStr(v, "author", r, path, true);
   reqStr(v, "text", r, path, false);
   optStr(v, "avatarUrl", r, path);
-  optNum(v, "time", r, path);
-  optNum(v, "likes", r, path);
+  optStr(v, "userId", r, path);
+  optInt(v, "time", r, path);
+  optInt(v, "likes", r, path);
   optBool(v, "liked", r, path);
-  checkFields(v, ["id", "author", "avatarUrl", "text", "time", "likes", "liked"], r, path);
+  optInt(v, "replyCount", r, path);
+  optStr(v, "replyTo", r, path);
+  optStr(v, "rootId", r, path);
+  const replies = optArr(v, "replies", r, path);
+  if (replies) each(replies, r, path + ".replies", validateComment, "reply");
+  checkFields(v, ["id", "author", "avatarUrl", "userId", "text", "time", "likes", "liked", "replyCount", "replyTo", "rootId", "replies"], r, path);
 }
 
 export function validateCommentPage(v, r, path) {
@@ -541,8 +562,8 @@ export function validateLyricLine(v, r, path) {
     r.errors.push(path + ": must be an object");
     return;
   }
-  if (!isNum(v.start)) r.errors.push(path + ".start: required number (seconds)");
-  optNum(v, "end", r, path);
+  if (!Number.isInteger(v.start)) r.errors.push(path + ".start: required integer (milliseconds)");
+  optInt(v, "end", r, path);
   optStr(v, "text", r, path);
   optStr(v, "translation", r, path);
   const words = optArr(v, "words", r, path);
@@ -551,8 +572,8 @@ export function validateLyricLine(v, r, path) {
       rr.errors.push(pp + ": must be an object");
       return;
     }
-    if (!isNum(word.start)) rr.errors.push(pp + ".start: required number");
-    if (!isNum(word.end)) rr.errors.push(pp + ".end: required number");
+    if (!Number.isInteger(word.start)) rr.errors.push(pp + ".start: required integer (milliseconds)");
+    if (!Number.isInteger(word.end)) rr.errors.push(pp + ".end: required integer (milliseconds)");
     if (typeof word.text !== "string") rr.errors.push(pp + ".text: required string");
   }, "word");
   checkFields(v, ["start", "end", "text", "translation", "words"], r, path);
@@ -699,10 +720,14 @@ export const EXPORTS = [
   { name: "suggest", calls: one(() => ({ query: "周" })), validate: validateSuggest },
   { name: "home", calls: one(), validate: validateBrowse },
   { name: "browse", calls: one(() => ({ page: "discover" })), validate: validateBrowse },
+  { name: "refreshBrowse", calls: one(() => ({ page: "discover" })), validate: validateBrowse },
   { name: "playlists", calls: one(), validate: arrayValidator(validatePlaylist, "playlists") },
   { name: "playlist", calls: one(() => ({ id: "1" })), validate: validatePlaylist },
+  { name: "playlistPage", calls: one(() => ({ id: "1", offset: 0 })), validate: validatePlaylist },
   { name: "album", calls: one(() => ({ id: "1" })), validate: validateAlbumPage },
   { name: "artist", calls: one(() => ({ id: "1" })), validate: validateArtistPage },
+  { name: "artistInfo", calls: one(() => ({ id: "1" })), validate: validateArtistPage },
+  { name: "artistSongs", calls: one(() => ({ id: "1", offset: 0 })), validate: validatePage },
   { name: "liked", calls: one(() => ({ offset: 0 })), validate: validatePage },
   { name: "recent", calls: one(), validate: validateTrackArray },
   { name: "isLiked", calls: one(() => ({ ids: ["1", "2"] })), validate: validateIsLiked },
@@ -726,6 +751,9 @@ export const EXPORTS = [
   { name: "comments", calls: one(() => ({ trackId: "1", offset: 0 })), validate: validateCommentPage },
   { name: "likeComment", calls: one(() => ({ trackId: "1", commentId: "1", on: true })), validate: validateVoid },
   { name: "postComment", calls: one(() => ({ trackId: "1", text: "hello" })), validate: validateComment },
+  { name: "replies", calls: one(() => ({ trackId: "1", commentId: "1", offset: 0 })), validate: validateCommentPage },
+  { name: "postReply", calls: one(() => ({ trackId: "1", text: "hello", commentId: "1", replyToId: "", replyToUserId: "" })), validate: validateComment },
+  { name: "likeReply", calls: one(() => ({ trackId: "1", commentId: "1", replyId: "2", on: true })), validate: validateVoid },
   { name: "played", calls: one(() => ({ id: "1" })), validate: validateVoid },
   { name: "lyrics", calls: one(() => ({ id: "1" })), validate: validateLyrics },
   { name: "stream", calls: one(() => ({ id: "1", quality: "high" })), validate: validateStream },

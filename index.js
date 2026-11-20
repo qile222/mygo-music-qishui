@@ -6,12 +6,11 @@
 // /usr/bin/base64（把解密后的音频写进插件数据目录），以及官方汽水音乐客户端自带的
 // Electron 运行时（只用来调用官方签名模块，见下方「官方签名」一节）。Windows / Linux
 // 上不启动任何外部程序，也不做音频解密：浏览、搜索、歌词和普通曲目播放可用，会员完整
-// 音频与写操作暂不支持。所有数据都来自汽水音乐客户端接口；写操作实现喜欢/取消喜欢、
-// 歌单编辑、收藏与关注，不实现评论；也不绕过 VIP/付费限制：只有试听片段的曲目由接口
-// 原样返回，App 会按返回的时长播放。
+// 音频与写操作暂不支持。所有数据都来自汽水音乐官方接口；写操作支持喜欢/取消喜欢、
+// 评论与回复（点赞/发表）、歌单编辑与收藏、专辑收藏和艺人关注；不破解 DRM、不绕过
+// VIP/付费限制，仅返回试听片段的无权益曲目会明确提示不可完整播放。
 //
-// MyGo 在持有 storage 锁时加载模块，所以模块顶层不能调用 host：host.storage、
-// host.signInPrompt 只出现在导出函数内部第一次使用时。
+// 模块顶层不调用 host：host.storage、host.t、host.signInPrompt 只在导出函数运行期调用。
 
 const APP = "https://beta-luna.douyin.com";
 const PC = "https://api.qishui.com";
@@ -46,7 +45,6 @@ const ARTIST_ALBUM_PAGE_SIZE = 500;
 const ARTIST_ALBUM_PAGES = 10;
 const ARTIST_ALBUM_LIMIT = 1000;
 const PLAYLIST_LIMIT = 500;
-const LIKED_LIMIT = 1000;
 const DAILY_LIMIT = 30;
 // 官方推荐流每个请求最多给 18 首（20 及以上会回退成 6 首），两页并行就够
 // 拼出 20–30 首，比旧版串行取 6 页快一倍。
@@ -83,6 +81,21 @@ function asID(value) {
 
 function pageOffset(value) {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function nonNegInt(value) {
+  const n = Math.round(Number(value) || 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function lruSet(map, key, value, limit) {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > limit) {
+    const oldest = map.keys().next();
+    if (oldest.done) break;
+    map.delete(oldest.value);
+  }
 }
 
 function dateText(seconds) {
@@ -148,29 +161,64 @@ function parseData(text) {
   return JSON.parse(out);
 }
 
-// 图片地址：汽水的封面是 {uri, urls, template_prefix}，拼出带 {size} 占位的
-// CDN 模板，由 App 替换成实际像素；头像等已经是完整 URL 的对象直接用 urls[0]。
-function coverURL(raw, size) {
+function normalizeWebURL(value) {
+  if (typeof value !== "string") return "";
+  const text = value.trim();
+  if (!text) return "";
+  if (/^http:\/\/[^\s]+$/i.test(text)) return "https://" + text.slice(7);
+  return /^https:\/\/[^\s]+$/i.test(text) ? text : "";
+}
+
+// 图片地址：汽水的封面和头像都是 {uri, urls, template_prefix}。当 urls[i] 是以 "/"
+// 结尾的 CDN 目录根路径且未标记 need_complete_url 时，必须拼上非空 uri（无 uri 则跳过该候选，
+// 避免返回裸目录地址）；已是完整 URL 时直接用 urls[i]，绝不能再把 uri 拼到签名 URL 后面。
+function resolveImageURL(raw, templateSuffix, allowRelative) {
   if (!raw) return "";
-  if (typeof raw === "string") return raw;
-  if (Array.isArray(raw)) return coverURL(raw[0], size);
-  const base = raw.urls && raw.urls[0] ? String(raw.urls[0]) : "";
-  const uri = raw.uri ? String(raw.uri) : "";
-  if (uri && base) {
-    const prefix = raw.template_prefix ? String(raw.template_prefix) : "";
-    if (prefix) return base + uri + "~" + prefix + "-resize:{size}:{size}.webp";
-    return base + uri;
+  if (typeof raw === "string") return normalizeWebURL(raw) || (allowRelative ? raw.trim() : "");
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const hit = resolveImageURL(item, templateSuffix, allowRelative);
+      if (hit) return hit;
+    }
+    return "";
   }
-  if (raw.url) return String(raw.url);
-  if (raw.uri_url) return String(raw.uri_url);
-  return base;
+  if (typeof raw !== "object") return "";
+  const urls = Array.isArray(raw.urls) ? raw.urls : [];
+  const uri = raw.uri ? String(raw.uri) : "";
+  const prefix = raw.template_prefix ? String(raw.template_prefix) : "";
+  for (const item of urls) {
+    const base = normalizeWebURL(item) || (allowRelative && typeof item === "string" ? item.trim() : "");
+    if (!base) continue;
+    if (!raw.need_complete_url && base.endsWith("/")) {
+      if (!uri) continue;
+      if (prefix && templateSuffix) return base + uri + "~" + prefix + templateSuffix;
+      return base + uri;
+    }
+    return base;
+  }
+  return (
+    normalizeWebURL(raw.url) ||
+    normalizeWebURL(raw.uri_url) ||
+    (allowRelative
+      ? (raw.url ? String(raw.url).trim() : "") || (raw.uri_url ? String(raw.uri_url).trim() : "")
+      : "")
+  );
+}
+
+function coverURL(raw) {
+  return resolveImageURL(raw, "-resize:{size}:{size}.webp", true);
+}
+
+function avatarURL(raw, size = 160) {
+  const px = Math.max(64, Math.floor(Number(size) || 160));
+  return resolveImageURL(raw, "-crop-center:" + px + ":" + px + ".jpg", false);
 }
 
 function queryString(params) {
   const parts = [];
   for (const key of Object.keys(params || {})) {
     const value = params[key];
-    if (value === undefined || value === null || value === "") continue;
+    if (value === undefined || value === null) continue;
     parts.push(encodeURIComponent(key) + "=" + encodeURIComponent(String(value)));
   }
   return parts.join("&");
@@ -258,9 +306,17 @@ function signedIn() {
 function persistSession() {
   const active = currentSession();
   if (active.signedIn) {
+    // 头像签名 URL 会过期（API.md §17.1），落盘只保留基础身份，运行时通过 account() / me 页刷新头像。
+    const savedProfile = active.profile
+      ? {
+          id: active.profile.id,
+          name: active.profile.name,
+          page: active.profile.page || "me",
+        }
+      : null;
     host.storage.set("session", {
       cookies: active.cookies,
-      profile: active.profile,
+      profile: savedProfile,
       signedIn: true,
     });
   } else {
@@ -268,16 +324,32 @@ function persistSession() {
   }
 }
 
-function clearSession() {
-  epoch++;
-  session = { cookies: {}, profile: null, signedIn: false };
+function resetSessionCaches() {
   discoverCache = null;
   discoverPending = null;
   discoverMixCache = null;
   discoverRadioCache = null;
+  discoverRadioPending = null;
   dailyCache = null;
+  dailyPending = null;
+  feedModeCache = null;
   chartCache = null;
   likedCache = null;
+  collectionCache = {};
+  clearSignatures();
+  suggestCache.clear();
+  artistSongsCache.clear();
+  playlistPageCache.clear();
+  commentsCache.clear();
+  repliesCache.clear();
+  for (const key of Object.keys(trackV2Cache)) delete trackV2Cache[key];
+  for (const key of Object.keys(stationStates)) delete stationStates[key];
+}
+
+function clearSession() {
+  epoch++;
+  session = { cookies: {}, profile: null, signedIn: false };
+  resetSessionCaches();
   host.storage.remove("session");
 }
 
@@ -779,12 +851,7 @@ async function signatureFor(url, headers) {
   if (cached && Date.now() - cached.at < SIGNATURE_TTL) return cached.signature;
   if (!onMac()) throw fail("setup", platformMessage());
   const signature = await signMessage({ url, headers, deviceId: deviceProfile().id });
-  signatureCache.set(key, { signature, at: Date.now() });
-  while (signatureCache.size > SIGNATURE_CACHE_LIMIT) {
-    const first = signatureCache.keys().next();
-    if (first.done) break;
-    signatureCache.delete(first.value);
-  }
+  lruSet(signatureCache, key, { signature, at: Date.now() }, SIGNATURE_CACHE_LIMIT);
   return signature;
 }
 
@@ -886,10 +953,22 @@ function toArtist(raw) {
   const id = raw.id === undefined || raw.id === null ? "" : String(raw.id);
   const name = raw.name || raw.simple_display_name || "";
   if (!id && !name) return null;
-  const artist = { id, name, imageUrl: coverURL(raw.url_avatar || raw.avatar_url, 240) };
-  const count = Number(raw.count_tracks);
-  if (Number.isFinite(count) && count > 0) artist.trackCount = Math.floor(count);
+  const imageUrl =
+    coverURL(raw.url_avatar) ||
+    coverURL(raw.avatar_url) ||
+    avatarURL(raw.medium_avatar_url, 240) ||
+    avatarURL(raw.thumb_avatar_url, 240);
+  const artist = { id, name, imageUrl };
+  const trackCount = nonNegInt(raw.count_tracks);
+  if (trackCount > 0) artist.trackCount = trackCount;
   return artist;
+}
+
+function toFollowedArtist(raw) {
+  const item = toArtist(raw);
+  if (!item || !item.id) return null;
+  item.following = true;
+  return item;
 }
 
 function artistsOfTrack(track) {
@@ -907,10 +986,17 @@ function toAlbum(raw) {
   return {
     id: raw.id === undefined || raw.id === null ? "" : String(raw.id),
     name: raw.name || tr("Unknown album"),
-    imageUrl: coverURL(raw.url_cover || raw.url_avatar, 320),
+    imageUrl: coverURL(raw.url_cover) || coverURL(raw.url_avatar),
     artists: (Array.isArray(raw.artists) ? raw.artists : []).map(toArtist).filter(Boolean),
     released: dateText(raw.release_date),
   };
+}
+
+function toSavedAlbum(raw) {
+  const item = toAlbum(raw);
+  if (!item || !item.id) return null;
+  item.saved = true;
+  return item;
 }
 
 function toTrack(raw) {
@@ -921,13 +1007,13 @@ function toTrack(raw) {
     name: raw.name || raw.title || "",
     artists: artistsOfTrack(raw),
     album: toAlbum(raw.album),
-    duration: Number(raw.duration) || 0,
+    duration: nonNegInt(raw.duration),
     // 官方收藏数：track.stats.count_collected。没有这个字段就是 0，宿主不显示，
     // 不用播放量、评论数或本地统计替代。
-    likeCount: Number(raw.stats && raw.stats.count_collected) || 0,
+    likeCount: nonNegInt(raw.stats && raw.stats.count_collected),
     // 官方评论数：track.stats.count_comment。宿主可先用它显示数字，避免评论
     // 还没加载时按钮暂时没有数字；不用本地统计替代。
-    commentCount: Number(raw.stats && raw.stats.count_comment) || 0,
+    commentCount: nonNegInt(raw.stats && raw.stats.count_comment),
     // 分享/复制链接用源站歌曲页，不是音频地址。
     url: "https://www.douyin.com/qishui/song/" + id,
   };
@@ -953,15 +1039,30 @@ function toPlaylist(raw, options) {
   return {
     id: raw.id === undefined || raw.id === null ? "" : String(raw.id),
     name: raw.title || raw.name || "",
-    imageUrl: coverURL(raw.url_cover, 400),
+    imageUrl: coverURL(raw.url_cover),
     description: raw.desc || raw.description || "",
     owner: owner.nickname || owner.name || "",
-    trackCount: Number(raw.count_tracks || raw.track_count) || 0,
+    trackCount: nonNegInt(raw.count_tracks || raw.track_count),
     mine: mine,
     // 自己的歌单里，只有普通歌单（type 2/3/11）允许改名、增删歌和排序。
     fixed: mine && ORDINARY_PLAYLIST_TYPES.indexOf(type) < 0,
     saved: opts.saved === true || (!mine && !!(raw.state && raw.state.is_collected)),
   };
+}
+
+function isLikedPlaylistRaw(raw) {
+  return Boolean(raw && Number(raw.type) === 1);
+}
+
+function appendPlaylists(out, seen, rows, options, skipLiked) {
+  for (const raw of rows || []) {
+    if (skipLiked && isLikedPlaylistRaw(raw)) continue;
+    const item = toPlaylist(raw, options);
+    if (!item || !item.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    out.push(item);
+  }
+  return out;
 }
 
 // ---------- 首页 / 榜单 ----------
@@ -993,7 +1094,7 @@ function chartCover(chart, tracks) {
   const style = (chart && chart.style) || {};
   for (const asset of [style.bg_url, style.title_url]) {
     if (asset && (asset.uri || asset.url || asset.uri_url)) {
-      const url = coverURL(asset, 640);
+      const url = coverURL(asset);
       if (url) return url;
     }
   }
@@ -1015,7 +1116,7 @@ async function chartDetail(id) {
     title: chart.title || tr("Charts"),
     description: style.desc || chart.desc || "",
     cover: chartCover(chart, tracks),
-    trackCount: Number(chart.count_tracks) || tracks.length,
+    trackCount: nonNegInt(chart.count_tracks) || tracks.length,
     tracks,
   };
 }
@@ -1131,7 +1232,7 @@ function modeRowsOf(data) {
         id,
         name: entry.text || tr("Scene radio"),
         description: entry.cutover_toast || "",
-        imageUrl: coverURL(entry.url_info, 400),
+        imageUrl: coverURL(entry.url_info),
       });
     }
   }
@@ -1170,7 +1271,7 @@ function radioStationsOf(data) {
           id: "radio:" + flowType + ":" + id,
           name: style.title || inner.title || tr("Radio"),
           description: style.desc || tr("Picked for your taste"),
-          imageUrl: coverURL((style.cover_url_list || [])[0] || style.cover_url, 400),
+          imageUrl: coverURL(style.cover_url_list) || coverURL(style.cover_url),
         });
       }
     }
@@ -1217,7 +1318,7 @@ function sceneImage(modesByID, sceneID) {
 }
 
 // 私人漫游是个人电台，固定放在听歌模式第一位；换一批只轮换其余模式。
-// 它没有官方图标，保留空 imageUrl 让宿主显示电台占位图。
+// 它没有官方图标，使用随插件分发的 recommendations.webp 占位图（不冒充官方封面）。
 function pinnedModeCards(cards) {
   const all = (cards || []).filter(Boolean);
   const pinned = all.filter((card) => card.id === RECOMMEND_STATION.id);
@@ -1325,7 +1426,7 @@ function rememberStationTracks(state, tracks) {
     if (!track || state.seen[track.id]) continue;
     state.seen[track.id] = true;
     fresh.push(track);
-    state.played.push({ id: track.id, duration: Number(track.duration) || 0 });
+    state.played.push({ id: track.id, duration: nonNegInt(track.duration) });
   }
   state.played = state.played.slice(-30);
   // 一批全是刚才听过的歌时清空去重表，避免电台卡住不再出歌。
@@ -1404,11 +1505,9 @@ export async function stationNext({ id }) {
   return stationNextFeed(key);
 }
 
-// 首页「推荐」的第一块：官方推荐流是电台，先把私人漫游入口放在最上面。
-// 真正取歌由 stationNext 负责，这里只给一张卡片。
-// ---------- PC 发现页 ----------
-// 旧的 /luna/discover 与首页共用同一份歌单，导致「发现」和「首页」第一屏一模一样。
-// PC 发现页的编辑精选和猜你喜欢是另外两组数据，且带 Cookie 即个性化。
+// ---------- 推荐歌单与个性化歌曲流 ----------
+// 首页与发现页不共用同一份推荐数据：首页展示听歌模式 + 推荐歌单（合并 APP /luna/discover
+// 与多轮 PC /luna/pc/discover/mix 去重），发现页展示 4 个官方歌曲榜 + 探索电台 + 猜你喜欢。
 
 function pcDiscoverPlaylists(data) {
   const rows = [];
@@ -1457,8 +1556,8 @@ async function discoverMixPlaylists(force) {
   return rows;
 }
 
-// 首页「推荐歌单」只放 APP 发现页的前 10 张；See All 页把 APP 发现页和 PC 编辑精选
-// 合并去重，得到更完整的推荐列表。两个接口都有缓存，重复打开不会重复打网络。
+// 推荐歌单合并 APP /luna/discover 与多轮 PC /luna/pc/discover/mix 去重：首页取前 30 张，
+// playlists 页共用同一份合并缓存。两个接口都有缓存，重复打开不会重复打网络。
 async function recommendedPlaylists(force) {
   const [data, mix] = await Promise.all([
     discoverData(force).catch(() => null),
@@ -1771,6 +1870,78 @@ export async function browse({ page }) {
       sections: [{ title: tr("All Songs"), tracks: chart.tracks }],
     };
   }
+  if (name === "following") {
+    if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to see artists you follow"));
+    if (!onMac()) throw fail("setup", platformMessage());
+    const artists = (await followedArtistRows()).map(toFollowedArtist).filter(Boolean);
+    return {
+      title: tr("Following"),
+      sections: [
+        {
+          title: tr("Followed Artists"),
+          artists,
+          empty: tr("Artists you follow will show here"),
+        },
+      ],
+    };
+  }
+  if (name === "me") {
+    if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to see your profile"));
+    let profile = currentSession().profile;
+    if (!profile || !profile.id || !profile.imageUrl) {
+      try {
+        const fresh = await fetchProfile(currentSession().cookies);
+        if (fresh) {
+          profile = fresh;
+          currentSession().profile = fresh;
+          persistSession();
+        }
+      } catch (error) {
+        if (error && error.code === "signIn") throw error;
+      }
+    }
+    profile = profile || {};
+    const me = profile.id ? String(profile.id) : profileID();
+    const [artistRows, albumRows, ownRows] = await Promise.all([
+      followedArtistRowsSafe(),
+      savedAlbumRowsSafe(),
+      myPlaylists().catch((error) => {
+        if (error && error.code === "signIn") throw error;
+        return [];
+      }),
+    ]);
+    const artists = artistRows.map(toFollowedArtist).filter(Boolean);
+    const albums = albumRows.map(toSavedAlbum).filter(Boolean).slice(0, 24);
+    const ownPlaylists = appendPlaylists([], new Set(), ownRows, { profileID: me }, true);
+    const sections = [];
+    if (onMac() || artists.length) {
+      const artistSection = {
+        title: tr("Followed Artists"),
+        artists: artists.slice(0, 24),
+        empty: tr("Artists you follow will show here"),
+      };
+      if (artists.length) artistSection.morePage = "following";
+      sections.push(artistSection);
+    }
+    if (onMac() || albums.length) {
+      sections.push({
+        title: tr("Saved Albums"),
+        albums,
+        empty: tr("Albums you save will show here"),
+      });
+    }
+    sections.push({
+      title: tr("My Playlists"),
+      playlists: ownPlaylists,
+      empty: tr("Playlists you create will show here"),
+    });
+    return {
+      title: profile.name || tr("My Page"),
+      subtitle: tr("Qishui Music"),
+      imageUrl: profile.imageUrl || "",
+      sections,
+    };
+  }
   if (name === "history") {
     if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to see your listening history here"));
     const items = await recentTracks();
@@ -1830,6 +2001,10 @@ export async function refreshBrowse({ page }) {
     discoverRadioCache = null;
   } else if (name === "all-modes") {
     feedModeCache = null;
+  } else if (name === "following") {
+    forgetCollection("artist");
+  } else if (name === "me") {
+    collectionCache = {};
   }
   return browse({ page: name });
 }
@@ -1987,19 +2162,47 @@ export async function search({ query, kind, offset }) {
   return result;
 }
 
-export async function suggest({ query }) {
-  const text = String(query || "").trim();
-  if (!text) return [];
-  const data = await luna("/luna/sug", { params: { q: text } });
+const SUGGEST_CACHE_TTL = 10 * 60 * 1000;
+const SUGGEST_CACHE_LIMIT = 64;
+const suggestCache = new Map();
+
+function parseSuggestions(data) {
   const seen = new Set();
   const out = [];
-  for (const item of data.sugs || []) {
+  for (const item of (data && data.sugs) || []) {
     const value = String((item && (item.suggestion || item.query || item.content)) || "").trim();
     if (!value || seen.has(value)) continue;
     seen.add(value);
     out.push(value);
     if (out.length >= 10) break;
   }
+  return out;
+}
+
+export async function suggest({ query }) {
+  const text = String(query || "").trim();
+  if (!text) return [];
+  const key = searchName(text);
+  const cached = suggestCache.get(key);
+  if (cached && Date.now() - cached.at < SUGGEST_CACHE_TTL) {
+    return cached.items.slice();
+  }
+  let out = [];
+  let pcError = null;
+  try {
+    out = parseSuggestions(await pc("/luna/pc/sug", { params: { q: text }, jar: null }));
+  } catch (error) {
+    pcError = error;
+  }
+  if (!out.length) {
+    try {
+      out = parseSuggestions(await luna("/luna/sug", { params: { q: text }, jar: null }));
+      pcError = null;
+    } catch (error) {
+      if (pcError) throw error;
+    }
+  }
+  lruSet(suggestCache, key, { at: Date.now(), items: out.slice() }, SUGGEST_CACHE_LIMIT);
   return out;
 }
 
@@ -2076,10 +2279,16 @@ async function fetchProfile(jar) {
   const data = await pc("/luna/pc/me", { jar });
   const info = data.my_info;
   if (!info || !info.id) return null;
+  const imageUrl =
+    avatarURL(info.larger_avatar_url, 200) ||
+    avatarURL(info.medium_avatar_url, 200) ||
+    avatarURL(info.avatar_url, 200) ||
+    avatarURL(info.thumb_avatar_url, 200);
   return {
     id: String(info.id),
     name: info.nickname || info.name || tr("Qishui user"),
-    imageUrl: coverURL(info.larger_avatar_url || info.medium_avatar_url || info.avatar_url, 200),
+    imageUrl,
+    page: "me",
   };
 }
 
@@ -2219,13 +2428,7 @@ async function finishSignIn(jar, startedEpoch) {
   if (!profile) throw new Error(tr("Couldn't read the signed-in Qishui account. Please scan the QR code again."));
   checkEpoch(startedEpoch);
   session = { cookies: jar, profile, signedIn: true };
-  discoverCache = null;
-  discoverPending = null;
-  discoverMixCache = null;
-  discoverRadioCache = null;
-  dailyCache = null;
-  chartCache = null;
-  likedCache = null;
+  resetSessionCaches();
   persistSession();
   host.signInPrompt({ text: tr("Signed in successfully") });
   return profile;
@@ -2235,7 +2438,6 @@ export async function signOut() {
   // 只忘掉插件自己的会话，不影响手机或网页上的汽水音乐登录。
   stopSigner();
   signatureWarm = false;
-  clearSignatures();
   clearSession();
 }
 
@@ -2281,25 +2483,25 @@ export async function album({ id }) {
   return { album: item, tracks: trackList(data.tracks) };
 }
 
-// 艺人页没有宿主分页，只能一次拉全；曲目和专辑与艺人详情并行请求，
-// 并把单页拉到 1000/500，常见歌手一次就够，避免串行多页导致首屏慢。
-async function collectArtistTracks(artistID) {
+// 旧宿主回退用的全量艺人拉取：曲目和专辑与艺人详情并行请求，并把单页拉到 1000/500，
+// 常见歌手一次就够，避免串行多页导致首屏慢。
+async function collectArtistItems(path, field, pageSize, maxPages, limit) {
   const out = [];
   let cursor = "0";
   try {
-    for (let page = 0; page < ARTIST_TRACK_PAGES && out.length < ARTIST_TRACK_LIMIT; page += 1) {
-      const data = await pc("/luna/pc/artists/" + artistID + "/tracks", {
-        params: { cursor: cursor, count: String(ARTIST_TRACK_PAGE_SIZE) },
+    for (let page = 0; page < maxPages && out.length < limit; page += 1) {
+      const data = await pc(path, {
+        params: { cursor, count: String(pageSize) },
         timeoutMs: 20000,
       });
-      const list = Array.isArray(data.tracks) ? data.tracks : [];
+      const list = Array.isArray(data[field]) ? data[field] : [];
       if (!list.length) break;
       out.push(...list);
-      if (out.length >= ARTIST_TRACK_LIMIT) break;
+      if (out.length >= limit) break;
       const next = data.next_cursor;
       if (next === undefined || next === null || String(next) === cursor) break;
       // 返回数少于请求数说明已经到底；否则 next_cursor 可能只是最后一个槽位。
-      if (list.length < ARTIST_TRACK_PAGE_SIZE) break;
+      if (list.length < pageSize) break;
       cursor = String(next);
     }
   } catch (error) {
@@ -2308,28 +2510,38 @@ async function collectArtistTracks(artistID) {
   return out;
 }
 
-async function collectArtistAlbums(artistID) {
-  const out = [];
-  let cursor = "0";
-  try {
-    for (let page = 0; page < ARTIST_ALBUM_PAGES && out.length < ARTIST_ALBUM_LIMIT; page += 1) {
-      const data = await pc("/luna/pc/artists/" + artistID + "/albums", {
-        params: { cursor: cursor, count: String(ARTIST_ALBUM_PAGE_SIZE) },
-        timeoutMs: 20000,
-      });
-      const list = Array.isArray(data.albums) ? data.albums : [];
-      if (!list.length) break;
-      out.push(...list);
-      if (out.length >= ARTIST_ALBUM_LIMIT) break;
-      const next = data.next_cursor;
-      if (next === undefined || next === null || String(next) === cursor) break;
-      if (list.length < ARTIST_ALBUM_PAGE_SIZE) break;
-      cursor = String(next);
+function collectArtistTracks(artistID) {
+  return collectArtistItems(
+    "/luna/pc/artists/" + artistID + "/tracks",
+    "tracks",
+    ARTIST_TRACK_PAGE_SIZE,
+    ARTIST_TRACK_PAGES,
+    ARTIST_TRACK_LIMIT,
+  );
+}
+
+function collectArtistAlbums(artistID) {
+  return collectArtistItems(
+    "/luna/pc/artists/" + artistID + "/albums",
+    "albums",
+    ARTIST_ALBUM_PAGE_SIZE,
+    ARTIST_ALBUM_PAGES,
+    ARTIST_ALBUM_LIMIT,
+  );
+}
+
+function mergeUniqueAlbums(...lists) {
+  const albums = [];
+  const seen = new Set();
+  for (const list of lists) {
+    for (const raw of Array.isArray(list) ? list : []) {
+      const item = toAlbum(raw);
+      if (!item || !item.id || seen.has(item.id)) continue;
+      seen.add(item.id);
+      albums.push(item);
     }
-  } catch (error) {
-    // 失败时保留已经拿到的页。
   }
-  return out;
+  return albums;
 }
 
 export async function artist({ id }) {
@@ -2343,17 +2555,6 @@ export async function artist({ id }) {
       tracks.push(track);
     }
   };
-  const albums = [];
-  const albumSeen = new Set();
-  const pushAlbums = (list) => {
-    for (const raw of Array.isArray(list) ? list : []) {
-      const item = toAlbum(raw);
-      if (!item || !item.id || albumSeen.has(item.id)) continue;
-      albumSeen.add(item.id);
-      albums.push(item);
-    }
-  };
-
   // 四个请求互不依赖，同时发出：艺人详情、关注列表、全部曲目、全部专辑。
   const [results, following, rawTracks, rawAlbums] = await Promise.all([
     pc("/luna/pc/artists/" + artistID),
@@ -2365,11 +2566,10 @@ export async function artist({ id }) {
   if (!info) throw new Error(tr("Couldn't find this artist"));
   push(results.hot_tracks);
   push(rawTracks);
-  pushAlbums(results.hot_albums);
-  pushAlbums(rawAlbums);
+  const albums = mergeUniqueAlbums(results.hot_albums, rawAlbums);
   const artist = toArtist(info);
   artist.following = following.has(artistID);
-  return { artist: artist, tracks: tracks.slice(0, ARTIST_TRACK_LIMIT), albums: albums };
+  return { artist, tracks: tracks.slice(0, ARTIST_TRACK_LIMIT), albums };
 }
 
 // 艺人页分两段返回：艺人和专辑先给宿主，歌曲按偏移分页，宿主先渲染第一页，
@@ -2385,31 +2585,82 @@ export async function artistInfo({ id }) {
   if (!info) throw new Error(tr("Couldn't find this artist"));
   const artist = toArtist(info);
   if (artist) artist.following = following.has(artistID);
-  const albums = [];
-  const seen = new Set();
-  const push = (list) => {
-    for (const raw of Array.isArray(list) ? list : []) {
-      const item = toAlbum(raw);
-      if (!item || !item.id || seen.has(item.id)) continue;
-      seen.add(item.id);
-      albums.push(item);
-    }
-  };
-  push(results.hot_albums);
-  push(rawAlbums);
-  return { artist, albums };
+  return { artist, albums: mergeUniqueAlbums(results.hot_albums, rawAlbums) };
 }
 
-// 一页艺人歌曲。cursor 是偏移量，按宿主给的 offset 直接取这一页。
+// 艺人曲目与歌单详情都按原始资源槽位推进 next_cursor，单页可能过滤掉若干不可播槽位；
+// 用短时状态缓存记住下一页的原始 next_cursor 与已见曲目 ID，避免提前截断或边界重复。
+// 非连续偏移请求（useState 为假）必须新建空 Set，不能复用旧状态里的 seen。
+const CURSOR_PAGE_CACHE_TTL = 5 * 60 * 1000;
+const CURSOR_PAGE_CACHE_LIMIT = 24;
+const artistSongsCache = new Map();
+const playlistPageCache = new Map();
+
+async function collectCursorPage(cache, key, offset, limit, fetchStep) {
+  const start = pageOffset(offset);
+  let state = start === 0 ? null : cache.get(key);
+  if (state && Date.now() - state.at > CURSOR_PAGE_CACHE_TTL) {
+    cache.delete(key);
+    state = null;
+  }
+  const useState = Boolean(state && start === state.loaded && state.nextCursor);
+  let cursor = start === 0 ? "0" : useState ? state.nextCursor : String(start);
+  const seen = useState ? state.seen : new Set();
+  const baseLoaded = useState ? state.loaded : start;
+  const tracks = [];
+  let hasMore = false;
+  let nextCursor = "";
+  for (let step = 0; step < 3; step++) {
+    const page = await fetchStep(cursor);
+    for (const track of page.tracks) {
+      if (!track || seen.has(track.id)) continue;
+      seen.add(track.id);
+      tracks.push(track);
+      if (limit && baseLoaded + tracks.length >= limit) break;
+    }
+    nextCursor = page.nextCursor;
+    hasMore =
+      (!limit || baseLoaded + tracks.length < limit) &&
+      page.hasMore &&
+      Boolean(nextCursor) &&
+      nextCursor !== cursor &&
+      page.rawCount > 0;
+    if (tracks.length > 0 || !hasMore) break;
+    cursor = nextCursor;
+  }
+  const loaded = baseLoaded + tracks.length;
+  const more = hasMore && tracks.length > 0 && (!limit || loaded < limit);
+  if (more) {
+    lruSet(cache, key, { at: Date.now(), loaded, nextCursor, seen }, CURSOR_PAGE_CACHE_LIMIT);
+  } else {
+    cache.delete(key);
+  }
+  return { tracks, loaded, more, start };
+}
+
 export async function artistSongs({ id, offset }) {
   const artistID = asID(id);
-  const at = Math.max(0, Math.floor(Number(offset) || 0));
-  const data = await pc("/luna/pc/artists/" + artistID + "/tracks", {
-    params: { cursor: String(at), count: String(ARTIST_SONGS_PAGE) },
-    timeoutMs: 20000,
-  });
-  const tracks = trackList(data.tracks);
-  return { tracks: tracks, more: tracks.length >= ARTIST_SONGS_PAGE };
+  const page = await collectCursorPage(
+    artistSongsCache,
+    artistID,
+    offset,
+    ARTIST_TRACK_LIMIT,
+    async (cursor) => {
+      const data = await pc("/luna/pc/artists/" + artistID + "/tracks", {
+        params: { cursor, count: String(ARTIST_SONGS_PAGE) },
+        timeoutMs: 20000,
+      });
+      const rawTracks = Array.isArray(data.tracks) ? data.tracks : [];
+      return {
+        tracks: trackList(rawTracks),
+        rawCount: rawTracks.length,
+        nextCursor:
+          data.next_cursor === undefined || data.next_cursor === null ? "" : String(data.next_cursor),
+        hasMore: data.has_more !== false,
+      };
+    },
+  );
+  return { tracks: page.tracks, more: page.more };
 }
 
 async function myPlaylists() {
@@ -2431,25 +2682,16 @@ export async function playlists() {
   }
   const out = [];
   const seen = new Set();
-  const push = (raw, options) => {
-    const item = toPlaylist(raw, options);
-    if (!item || !item.id || seen.has(item.id)) return;
-    seen.add(item.id);
-    out.push(item);
-  };
-  for (const raw of own) {
-    // 「我喜欢」在侧栏已有独立入口，不再把同一份歌单塞进 My Playlists。
-    if (raw && Number(raw.type) === 1) continue;
-    push(raw, { profileID: me });
-  }
-  for (const raw of savedRows) push(raw, { profileID: me, saved: true });
+  // 「我喜欢」在侧栏已有独立入口，不再把同一份歌单塞进 My Playlists。
+  appendPlaylists(out, seen, own, { profileID: me }, true);
+  appendPlaylists(out, seen, savedRows, { profileID: me, saved: true }, false);
   return out;
 }
 
 async function likedPlaylist() {
   const list = await myPlaylists();
   const found =
-    list.find((item) => item && Number(item.type) === 1) ||
+    list.find(isLikedPlaylistRaw) ||
     list.find((item) => item && /喜欢/.test(String(item.title || "")));
   if (!found || !found.id) {
     throw fail("unavailable", tr("Couldn't find the Liked Songs playlist. Like a song in Qishui Music first."));
@@ -2481,13 +2723,13 @@ async function loadPlaylist(id) {
   return { raw, tracks: tracks.slice(0, PLAYLIST_LIMIT) };
 }
 
-export async function playlist({ id }) {
-  const rawID = id === undefined || id === null ? "" : String(id);
-  if (rawID.startsWith("chart:")) {
-    const chartID = rawID.slice("chart:".length);
-    const chart = (await chartsData()).find((item) => item.id === chartID);
-    if (!chart) throw fail("unavailable", tr("No such chart"));
-    return {
+async function chartPlaylistBase(rawID) {
+  const chartID = rawID.slice("chart:".length);
+  const chart = (await chartsData()).find((item) => item.id === chartID);
+  if (!chart) throw fail("unavailable", tr("No such chart"));
+  return {
+    chart,
+    playlist: {
       id: rawID,
       name: chart.title,
       imageUrl: chart.cover,
@@ -2496,8 +2738,16 @@ export async function playlist({ id }) {
       mine: false,
       fixed: true,
       saved: false,
-      tracks: chart.tracks,
-    };
+    },
+  };
+}
+
+export async function playlist({ id }) {
+  const rawID = id === undefined || id === null ? "" : String(id);
+  if (rawID.startsWith("chart:")) {
+    const { chart, playlist: header } = await chartPlaylistBase(rawID);
+    header.tracks = chart.tracks;
+    return header;
   }
   const playlistID = asID(id);
   const loaded = await loadPlaylist(playlistID);
@@ -2514,57 +2764,54 @@ export async function playlist({ id }) {
   return item;
 }
 
-// 宿主按需取歌单的一页。汽水 /luna/playlist/detail 的 cursor 是已取条数，
-// 单页上限约 50 首；has_more 偶尔缺失，用 next_cursor 判断是否还有下一页。
+function forgetPlaylistPage(playlistID) {
+  if (playlistID) playlistPageCache.delete(String(playlistID));
+}
+
 export async function playlistPage({ id, offset }) {
   const rawID = id === undefined || id === null ? "" : String(id);
-  const start = Math.max(0, Math.floor(Number(offset) || 0));
+  const start = pageOffset(offset);
   if (rawID.startsWith("chart:")) {
-    const chartID = rawID.slice("chart:".length);
-    const chart = (await chartsData()).find((item) => item.id === chartID);
-    if (!chart) throw fail("unavailable", tr("No such chart"));
+    const { chart, playlist: header } = await chartPlaylistBase(rawID);
     const tracks = chart.tracks.slice(start, start + PAGE_SIZE);
-    return {
-      id: rawID,
-      name: chart.title,
-      imageUrl: chart.cover,
-      description: chart.description,
-      trackCount: Math.max(chart.trackCount, chart.tracks.length),
-      mine: false,
-      fixed: true,
-      saved: false,
-      tracks: tracks,
-      more: start + tracks.length < chart.tracks.length,
-    };
+    header.tracks = tracks;
+    header.more = start + tracks.length < chart.tracks.length;
+    return header;
   }
   const playlistID = asID(id);
-  const data = await luna("/luna/playlist/detail", {
-    body: { playlist_id: playlistID, cursor: String(start), count: String(PAGE_SIZE) },
-  });
-  const tracks = [];
-  for (const item of data.media_resources || []) {
-    const track = toTrack(rawTrackOf(item && item.entity ? item.entity : item));
-    if (track) tracks.push(track);
-  }
-  const item = data.playlist ? toPlaylist(data.playlist) : { id: playlistID };
+  let rawPlaylist = null;
+  const page = await collectCursorPage(
+    playlistPageCache,
+    playlistID,
+    start,
+    0,
+    async (cursor) => {
+      const data = await luna("/luna/playlist/detail", {
+        body: { playlist_id: playlistID, cursor, count: String(PAGE_SIZE) },
+      });
+      if (data.playlist && !rawPlaylist) rawPlaylist = data.playlist;
+      const media = Array.isArray(data.media_resources) ? data.media_resources : [];
+      return {
+        tracks: media
+          .map((entry) => toTrack(rawTrackOf(entry && entry.entity ? entry.entity : entry)))
+          .filter(Boolean),
+        rawCount: media.length,
+        nextCursor:
+          data.next_cursor === undefined || data.next_cursor === null ? "" : String(data.next_cursor),
+        hasMore: Boolean(data.has_more),
+      };
+    },
+  );
+  const item = rawPlaylist ? toPlaylist(rawPlaylist) : { id: playlistID };
   if (!item.id) item.id = playlistID;
-  item.tracks = tracks;
-  if (item.trackCount === undefined) item.trackCount = tracks.length;
-  if (item.tracks.length > item.trackCount) item.trackCount = item.tracks.length;
-  // 汽水的 next_cursor 偶尔跳过已取条数，has_more 也不总是可靠；歌单的
-  // trackCount 才是总共多少首。不知道总数时才退回接口的翻页字段。
-  const next = Number(data.next_cursor);
-  const more =
-    tracks.length > 0 &&
-    (item.trackCount > 0
-      ? start + tracks.length < item.trackCount
-      : !!data.has_more || (Number.isSafeInteger(next) && next > start + tracks.length));
+  item.tracks = page.tracks;
+  if (item.trackCount === undefined || page.loaded > item.trackCount) item.trackCount = page.loaded;
   // 第一页才需要收藏状态；后续页只追加歌曲。
   if (start === 0 && !item.mine) {
     const rows = await decorationRows("playlist", savedPlaylistRows);
     if (rows) item.saved = rows.some((raw) => String(raw.id) === playlistID);
   }
-  item.more = more;
+  item.more = page.more;
   return item;
 }
 
@@ -2627,9 +2874,8 @@ export async function isLiked({ ids }) {
   return result;
 }
 
-// ---------- 红心（收藏 / 取消收藏） ----------
-// 官方收藏接口对 PC 请求同样校验签名，这里直接复用 signedPC。只实现「喜欢 / 取消
-// 喜欢」这一种写操作；评论、歌单编辑等仍不实现。
+// ---------- 红心（收藏 / 取消收藏）与播放上报 ----------
+// 官方收藏与最近播放上报接口对 PC 请求校验签名，直接复用 signedPC。
 
 const COLLECTION_PATH = "/luna/pc/me/collection/media";
 
@@ -2648,10 +2894,10 @@ export async function like({ id, on }) {
   likedCache = null;
 }
 
-export async function played({ id }) {
+export async function played({ id } = {}) {
   if (!signedIn()) return;
-  const trackID = trackIDOf(id);
   try {
+    const trackID = trackIDOf(id);
     // 让播放同步进汽水自己的「最近播放」；失败不影响 App 播放。
     await signedPC(HISTORY_PATH, { media: [{ type: "track", id: trackID }] });
   } catch (error) {
@@ -2715,14 +2961,57 @@ async function savedAlbumRows() {
   return rememberCollection("album", await collectMixed("album"));
 }
 
+async function collectFollowedArtists() {
+  const rows = [];
+  const seen = new Set();
+  let cursor = "";
+  for (let page = 0; page < 10 && rows.length < COLLECTION_LIMIT; page++) {
+    const data = await signedGET("/luna/pc/me/collection/artist", {
+      cursor: cursor,
+      count: String(PAGE_SIZE),
+    });
+    const batch = Array.isArray(data.artists) ? data.artists : [];
+    if (!batch.length) break;
+    for (const raw of batch) {
+      if (!raw || raw.id === undefined || raw.id === null) continue;
+      const id = String(raw.id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      rows.push(raw);
+      if (rows.length >= COLLECTION_LIMIT) break;
+    }
+    if (rows.length >= COLLECTION_LIMIT) break;
+    if (data.has_more === false) break;
+    const next =
+      data.next_cursor === undefined || data.next_cursor === null ? "" : String(data.next_cursor);
+    if (!next || next === cursor || next === "0_0") break;
+    cursor = next;
+  }
+  return rows.slice(0, COLLECTION_LIMIT);
+}
+
 async function followedArtistRows() {
   const hit = cachedCollection("artist");
   if (hit) return hit;
-  const data = await signedGET("/luna/pc/me/collection/artist", {
-    cursor: "",
-    count: String(PAGE_SIZE),
-  });
-  return rememberCollection("artist", Array.isArray(data.artists) ? data.artists : []);
+  return rememberCollection("artist", await collectFollowedArtists());
+}
+
+async function collectionRowsSafe(fetcher) {
+  if (!signedIn() || !onMac()) return [];
+  try {
+    return await fetcher();
+  } catch (error) {
+    if (error && error.code === "signIn") throw error;
+    return [];
+  }
+}
+
+function savedAlbumRowsSafe() {
+  return collectionRowsSafe(savedAlbumRows);
+}
+
+function followedArtistRowsSafe() {
+  return collectionRowsSafe(followedArtistRows);
 }
 
 // 专辑页、歌手页、别人的歌单页上的「已收藏 / 已关注」只是装饰：签名进程还没热好
@@ -2857,6 +3146,7 @@ export async function renamePlaylist({ id, name }) {
   const title = playlistName(name);
   await ownPlaylistRaw(playlistID, false);
   await signedPC(OWN_PLAYLIST_PATH + "/update", { playlist_id: playlistID, name: title });
+  forgetPlaylistPage(playlistID);
 }
 
 export async function deletePlaylist({ id }) {
@@ -2864,6 +3154,7 @@ export async function deletePlaylist({ id }) {
   requireSignedIn(tr("Sign in to Qishui Music to delete playlists"));
   await ownPlaylistRaw(playlistID, false);
   await signedPC(OWN_PLAYLIST_PATH + "/delete", { playlist_ids: [playlistID] });
+  forgetPlaylistPage(playlistID);
 }
 
 async function changePlaylist(id, trackIds, on) {
@@ -2875,12 +3166,14 @@ async function changePlaylist(id, trackIds, on) {
     // 「我喜欢的音乐」也是收藏媒体的一种，加/删都走 collection/media。
     await signedPC(COLLECTION_ROOT + "/media" + (on ? "" : "/delete"), on ? { scene: "", media: media } : { media: media });
     likedCache = null;
+    forgetPlaylistPage(playlistID);
     return;
   }
   await signedPC(OWN_PLAYLIST_PATH + "/media/" + (on ? "append" : "delete"), {
     playlist_id: playlistID,
     media: media,
   });
+  forgetPlaylistPage(playlistID);
 }
 
 export async function addToPlaylist({ id, trackIds }) {
@@ -2908,6 +3201,7 @@ export async function movePlaylistTrack({ id, from, to }) {
       return { id: trackID, type: "track" };
     }),
   });
+  forgetPlaylistPage(playlistID);
 }
 
 export async function savePlaylist({ id, on }) {
@@ -2940,16 +3234,7 @@ export async function followArtist({ id, on }) {
 export async function savedAlbums({ offset }) {
   requireSignedIn(tr("Sign in to Qishui Music to see your saved albums here"));
   const start = pageOffset(offset);
-  const rows = await savedAlbumRows();
-  const albums = rows
-    .map(function (raw) {
-      const item = toAlbum(raw);
-      if (item && item.id) item.saved = true;
-      return item;
-    })
-    .filter(function (item) {
-      return item && item.id;
-    });
+  const albums = (await savedAlbumRows()).map(toSavedAlbum).filter(Boolean);
   return {
     albums: albums.slice(start, start + SAVED_ALBUMS_PAGE),
     more: start + SAVED_ALBUMS_PAGE < albums.length,
@@ -3009,11 +3294,12 @@ function parseKRC(content) {
     if (!match) continue;
     const baseMs = Number(match[1]);
     const durationMs = Number(match[2]);
+    const body = match[3];
     const words = [];
     let text = "";
     let word;
     KRC_WORD.lastIndex = 0;
-    while ((word = KRC_WORD.exec(match[3]))) {
+    while ((word = KRC_WORD.exec(body))) {
       const chunk = word[3];
       if (!chunk) continue;
       const offset = Number(word[1]);
@@ -3024,6 +3310,9 @@ function parseKRC(content) {
         end: (baseMs + offset + Math.max(duration, 1)) / 1000,
         text: chunk,
       });
+    }
+    if (!words.length) {
+      text = body.replace(/<[^>]*>/g, "").trim();
     }
     if (!text) continue;
     lines.push({
@@ -3079,13 +3368,45 @@ function lyricLinesMs(lines) {
   });
 }
 
+function lyricFromData(data) {
+  const lyric = (data && data.lyric) || {};
+  const content = lyric.content ? String(lyric.content) : "";
+  return content ? { lyric, content } : null;
+}
+
 export async function lyrics({ id }) {
   const trackID = asID(id);
-  const data = await seoTrack(trackID);
-  const lyric = data.lyric || {};
-  const content = lyric.content ? String(lyric.content) : "";
-  if (!content) return { lrc: "", lines: [] };
-  if (String(lyric.type || "").toLowerCase() === "krc" || content.indexOf("<") !== -1) {
+  let found = null;
+  const saved = trackV2Cache[trackID];
+  if (saved && Date.now() - saved.at < TRACK_CACHE_TTL) {
+    found = lyricFromData(saved.data);
+  }
+  let seoError = null;
+  if (!found) {
+    try {
+      found = lyricFromData(await seoTrack(trackID));
+    } catch (error) {
+      seoError = error;
+    }
+  }
+  if (!found) {
+    try {
+      const fallback = await pc("/luna/pc/track_v2", {
+        params: { track_id: trackID, media_type: "track", queue_type: "" },
+        jar: null,
+      });
+      found = lyricFromData(fallback);
+    } catch (error) {
+      if (seoError) throw error;
+    }
+  }
+  if (!found) return { lrc: "", lines: [] };
+  const { lyric, content } = found;
+  if (
+    String(lyric.type || "").toLowerCase() === "krc" ||
+    content.indexOf("<") !== -1 ||
+    /^\[\d+,\d+\]/m.test(content)
+  ) {
     const lines = parseKRC(content);
     if (lines.length) {
       return { lrc: lines.map((line) => lrcTimestamp(line.start) + line.text).join("\n"), lines: lyricLinesMs(lines) };
@@ -3108,30 +3429,9 @@ const COMMENTS_PAGE = 20;
 const COMMENTS_MAX_PAGES = 20;
 const COMMENTS_CACHE_TTL = 5 * 60 * 1000;
 const COMMENTS_CACHE_LIMIT = 8;
+const REPLIES_CACHE_LIMIT = 16;
 const commentsCache = new Map();
-
-function httpsURL(value) {
-  if (typeof value !== "string") return "";
-  const text = value.trim();
-  return /^https:\/\/[^\s]+$/i.test(text) ? text : "";
-}
-
-function commentAvatar(raw) {
-  if (!raw) return "";
-  if (typeof raw === "string") return httpsURL(raw);
-  const urls = Array.isArray(raw.urls) ? raw.urls : [];
-  const uri = raw.uri ? String(raw.uri) : "";
-  const prefix = raw.template_prefix ? String(raw.template_prefix) : "";
-  for (const item of urls) {
-    const base = httpsURL(item);
-    if (!base) continue;
-    if (uri && prefix && !raw.need_complete_url) {
-      return base + uri + "~" + prefix + "-crop-center:100:100.jpg";
-    }
-    return base;
-  }
-  return httpsURL(raw.url) || httpsURL(raw.uri_url);
-}
+const repliesCache = new Map();
 
 function commentOf(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -3146,9 +3446,9 @@ function commentOf(raw) {
     (typeof user.public_name === "string" ? user.public_name.trim() : "") ||
     tr("Qishui user");
   const avatar =
-    commentAvatar(brief && (brief.url_avatar || brief.thumb_avatar_url || brief.medium_avatar_url)) ||
-    commentAvatar(user.thumb_avatar_url || user.medium_avatar_url || user.url_avatar);
-  const comment = { id: id, author: name, text: text };
+    avatarURL(brief && (brief.url_avatar || brief.thumb_avatar_url || brief.medium_avatar_url), 100) ||
+    avatarURL(user.thumb_avatar_url || user.medium_avatar_url || user.url_avatar, 100);
+  const comment = { id, author: name, text };
   if (avatar) comment.avatarUrl = avatar;
   const userId = user.id === undefined || user.id === null ? "" : String(user.id);
   if (userId) comment.userId = userId;
@@ -3171,41 +3471,42 @@ function commentOf(raw) {
   return comment;
 }
 
-async function commentPage(id, cursor) {
+async function fetchCommentEndpoint(path, trackId, cursor) {
   const params = {
-    group_id: id,
+    group_id: trackId,
     group_type: 0,
-    cursor: cursor,
+    cursor,
     count: COMMENTS_PAGE,
     image_strategy: 2,
   };
   if (signedIn()) {
     try {
-      return await signedGET("/luna/pc/comments", params);
+      return await signedGET(path, params);
     } catch (error) {
       if (error && error.code === "signIn") throw error;
       // 签名程序不可用时退回匿名接口，评论照样能看。
     }
   }
-  return pc("/luna/pc/comments", { params: params });
+  return pc(path, { params });
 }
 
-export async function comments({ trackId, offset }) {
-  const id = asID(trackId);
+async function loadCachedCommentPage({ cache, cacheLimit, key, offset, path, trackId, listKey, rootId }) {
   const start = pageOffset(offset);
-  let state = start === 0 ? null : commentsCache.get(id);
+  let state = start === 0 ? null : cache.get(key);
   if (state && Date.now() - state.at > COMMENTS_CACHE_TTL) state = null;
   if (!state) {
     state = { at: Date.now(), comments: [], ids: new Set(), cursor: "", more: true, total: 0, pages: 0 };
   }
   while (state.comments.length <= start && state.more && state.pages < COMMENTS_MAX_PAGES) {
     const cursor = state.cursor;
-    const data = await commentPage(id, cursor);
-    const rows = Array.isArray(data.comments) ? data.comments : [];
+    const data = await fetchCommentEndpoint(path, trackId, cursor);
+    const rows = Array.isArray(data[listKey]) ? data[listKey] : [];
     const page = [];
     for (const raw of rows) {
       const mapped = commentOf(raw);
-      if (mapped) page.push(mapped);
+      if (!mapped) continue;
+      if (rootId && !mapped.rootId) mapped.rootId = rootId;
+      page.push(mapped);
     }
     for (const comment of page) {
       if (state.ids.has(comment.id)) continue;
@@ -3215,18 +3516,12 @@ export async function comments({ trackId, offset }) {
     const total = Number(data.count);
     if (Number.isFinite(total) && total >= 0) state.total = Math.floor(total);
     const next = data.cursor === undefined || data.cursor === null ? "" : String(data.cursor);
-    state.more = data.has_more === true && page.length > 0 && !!next && next !== cursor;
+    state.more = data.has_more === true && page.length > 0 && Boolean(next) && next !== cursor;
     state.cursor = next;
     state.pages++;
   }
   state.at = Date.now();
-  commentsCache.delete(id);
-  commentsCache.set(id, state);
-  while (commentsCache.size > COMMENTS_CACHE_LIMIT) {
-    const oldest = commentsCache.keys().next();
-    if (oldest.done) break;
-    commentsCache.delete(oldest.value);
-  }
+  lruSet(cache, key, state, cacheLimit);
   const page = state.comments.slice(start, start + COMMENTS_PAGE).map((comment) => Object.assign({}, comment));
   return {
     comments: page,
@@ -3235,104 +3530,105 @@ export async function comments({ trackId, offset }) {
   };
 }
 
-const REPLIES_CACHE_TTL = 5 * 60 * 1000;
-const REPLIES_CACHE_LIMIT = 16;
-const repliesCache = new Map();
-
-async function repliesPage(trackId, commentId, cursor) {
-  const params = {
-    cursor: cursor,
-    count: COMMENTS_PAGE,
-    image_strategy: 2,
-  };
-  const path = "/luna/pc/comments/" + encodeURIComponent(commentId) + "/replies";
-  if (signedIn()) {
-    try {
-      return await signedGET(path, Object.assign({ group_id: trackId, group_type: 0 }, params));
-    } catch (error) {
-      if (error && error.code === "signIn") throw error;
-    }
-  }
-  return pc(path, { params: Object.assign({ group_id: trackId, group_type: 0 }, params) });
+export async function comments({ trackId, offset }) {
+  const id = asID(trackId);
+  return loadCachedCommentPage({
+    cache: commentsCache,
+    cacheLimit: COMMENTS_CACHE_LIMIT,
+    key: id,
+    offset,
+    path: "/luna/pc/comments",
+    trackId: id,
+    listKey: "comments",
+    rootId: "",
+  });
 }
 
 export async function replies({ trackId, commentId, offset }) {
   const id = asID(trackId);
   const root = asID(commentId);
-  const start = pageOffset(offset);
-  const key = id + ":" + root;
-  let state = start === 0 ? null : repliesCache.get(key);
-  if (state && Date.now() - state.at > REPLIES_CACHE_TTL) state = null;
-  if (!state) {
-    state = { at: Date.now(), comments: [], ids: new Set(), cursor: "", more: true, total: 0, pages: 0 };
+  return loadCachedCommentPage({
+    cache: repliesCache,
+    cacheLimit: REPLIES_CACHE_LIMIT,
+    key: id + ":" + root,
+    offset,
+    path: "/luna/pc/comments/" + encodeURIComponent(root) + "/replies",
+    trackId: id,
+    listKey: "reply_infos",
+    rootId: root,
+  });
+}
+
+function cleanCommentText(text) {
+  const value = typeof text === "string" ? text.trim() : "";
+  if (!value) throw new Error(tr("Comment can't be empty"));
+  if (Array.from(value).length > 280) throw new Error(tr("Comments are limited to 280 characters"));
+  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) {
+    throw new Error(tr("Comment contains unsupported characters"));
   }
-  while (state.comments.length <= start && state.more && state.pages < COMMENTS_MAX_PAGES) {
-    const cursor = state.cursor;
-    const data = await repliesPage(id, root, cursor);
-    const rows = Array.isArray(data.reply_infos) ? data.reply_infos : [];
-    const page = [];
-    for (const raw of rows) {
-      const mapped = commentOf(raw);
-      if (mapped) {
-        if (!mapped.rootId) mapped.rootId = root;
-        page.push(mapped);
-      }
-    }
-    for (const comment of page) {
-      if (state.ids.has(comment.id)) continue;
-      state.ids.add(comment.id);
-      state.comments.push(comment);
-    }
-    const total = Number(data.count);
-    if (Number.isFinite(total) && total >= 0) state.total = Math.floor(total);
-    const next = data.cursor === undefined || data.cursor === null ? "" : String(data.cursor);
-    state.more = data.has_more === true && page.length > 0 && !!next && next !== cursor;
-    state.cursor = next;
-    state.pages++;
-  }
-  state.at = Date.now();
-  repliesCache.delete(key);
-  repliesCache.set(key, state);
-  while (repliesCache.size > REPLIES_CACHE_LIMIT) {
-    const oldest = repliesCache.keys().next();
-    if (oldest.done) break;
-    repliesCache.delete(oldest.value);
-  }
-  const page = state.comments.slice(start, start + COMMENTS_PAGE).map((comment) => Object.assign({}, comment));
-  return {
-    comments: page,
-    total: Math.max(state.total, state.comments.length),
-    more: start + page.length < state.comments.length || (state.more && page.length > 0),
+  return value;
+}
+
+async function createCommentRecord(trackId, text, rootId, replyToId, replyToUserId) {
+  requireSignedIn(tr("Sign in to Qishui Music to post comments"));
+  const value = cleanCommentText(text);
+  const data = await signedPC("/luna/pc/comments/create", {
+    group_id: trackId,
+    group_type: 0,
+    comment_type: 0,
+    text: value,
+    hashtags: [],
+    reply_id: rootId || "",
+    reply_to_reply_id: rootId && replyToId && replyToId !== rootId ? replyToId : "",
+    reply_to_user_id: rootId && replyToUserId ? String(replyToUserId) : "",
+    text_extra: [],
+  });
+  const created =
+    data.created_comment === undefined || data.created_comment === null ? "" : String(data.created_comment);
+  if (!created || /^0+$/.test(created)) throw new Error(tr("Qishui didn't return the new comment ID"));
+  const profile = currentSession().profile || {};
+  const comment = {
+    id: created,
+    author: profile.name || tr("Me"),
+    text: value,
+    time: Date.now(),
+    likes: 0,
+    liked: false,
   };
+  if (rootId) comment.rootId = rootId;
+  if (profile.imageUrl) comment.avatarUrl = profile.imageUrl;
+  if (profile.id) comment.userId = String(profile.id);
+  return comment;
+}
+
+async function setCommentLike(trackId, commentId, replyId, on, cache, cacheKey, targetId) {
+  requireSignedIn(tr("Sign in to Qishui Music to like comments"));
+  const liked = on === true;
+  await signedPC("/luna/pc/comments/action", {
+    comment_id: commentId,
+    reply_id: replyId,
+    group_id: trackId,
+    type: liked ? 1 : 3,
+    scene_name: "comment_detail",
+  });
+  const state = cache.get(cacheKey);
+  if (!state) return;
+  for (const item of state.comments) {
+    if (item.id !== targetId) continue;
+    if (item.liked !== liked) {
+      item.likes = Math.max(0, Number(item.likes || 0) + (liked ? 1 : -1));
+      item.liked = liked;
+    }
+    break;
+  }
 }
 
 export async function postReply({ trackId, text, commentId, replyToId, replyToUserId }) {
   const id = asID(trackId);
   const root = asID(commentId);
   const target = replyToId === undefined || replyToId === null || replyToId === "" ? "" : asID(replyToId);
-  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to post comments"));
-  const value = typeof text === "string" ? text.trim() : "";
-  if (!value) throw new Error(tr("Comment can't be empty"));
-  if (Array.from(value).length > 280) throw new Error(tr("Comments are limited to 280 characters"));
-  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw new Error(tr("Comment contains unsupported characters"));
-  const data = await signedPC("/luna/pc/comments/create", {
-    group_id: id,
-    group_type: 0,
-    comment_type: 0,
-    text: value,
-    hashtags: [],
-    reply_id: root,
-    reply_to_reply_id: target && target !== root ? target : "",
-    reply_to_user_id: replyToUserId ? String(replyToUserId) : "",
-    text_extra: [],
-  });
-  const created = data.created_comment === undefined || data.created_comment === null ? "" : String(data.created_comment);
-  if (!created || /^0+$/.test(created)) throw new Error(tr("Qishui didn't return the new comment ID"));
+  const comment = await createCommentRecord(id, text, root, target, replyToUserId);
   repliesCache.delete(id + ":" + root);
-  const profile = currentSession().profile || {};
-  const comment = { id: created, author: profile.name || tr("Me"), text: value, time: Date.now(), likes: 0, liked: false, rootId: root };
-  if (profile.imageUrl) comment.avatarUrl = profile.imageUrl;
-  if (profile.id) comment.userId = String(profile.id);
   return comment;
 }
 
@@ -3340,75 +3636,19 @@ export async function likeReply({ trackId, commentId, replyId, on }) {
   const id = asID(trackId);
   const root = asID(commentId);
   const reply = asID(replyId);
-  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to like comments"));
-  const liked = on === true;
-  await signedPC("/luna/pc/comments/action", {
-    comment_id: root,
-    reply_id: reply,
-    group_id: id,
-    type: liked ? 1 : 3,
-    scene_name: "comment_detail",
-  });
-  const state = repliesCache.get(id + ":" + root);
-  if (!state) return;
-  for (const item of state.comments) {
-    if (item.id !== reply) continue;
-    if (item.liked !== liked) {
-      item.likes = Math.max(0, Number(item.likes || 0) + (liked ? 1 : -1));
-      item.liked = liked;
-    }
-    break;
-  }
+  await setCommentLike(id, root, reply, on, repliesCache, id + ":" + root, reply);
 }
 
 export async function likeComment({ trackId, commentId, on }) {
   const id = asID(trackId);
   const comment = asID(commentId);
-  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to like comments"));
-  const liked = on === true;
-  await signedPC("/luna/pc/comments/action", {
-    comment_id: comment,
-    reply_id: "",
-    group_id: id,
-    type: liked ? 1 : 3,
-    scene_name: "comment_detail",
-  });
-  const state = commentsCache.get(id);
-  if (!state) return;
-  for (const item of state.comments) {
-    if (item.id !== comment) continue;
-    if (item.liked !== liked) {
-      item.likes = Math.max(0, Number(item.likes || 0) + (liked ? 1 : -1));
-      item.liked = liked;
-    }
-    break;
-  }
+  await setCommentLike(id, comment, "", on, commentsCache, id, comment);
 }
 
 export async function postComment({ trackId, text }) {
   const id = asID(trackId);
-  if (!signedIn()) throw fail("signIn", tr("Sign in to Qishui Music to post comments"));
-  const value = typeof text === "string" ? text.trim() : "";
-  if (!value) throw new Error(tr("Comment can't be empty"));
-  if (Array.from(value).length > 280) throw new Error(tr("Comments are limited to 280 characters"));
-  if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw new Error(tr("Comment contains unsupported characters"));
-  const data = await signedPC("/luna/pc/comments/create", {
-    group_id: id,
-    group_type: 0,
-    comment_type: 0,
-    text: value,
-    hashtags: [],
-    reply_id: "",
-    reply_to_reply_id: "",
-    reply_to_user_id: "",
-    text_extra: [],
-  });
-  const created = data.created_comment === undefined || data.created_comment === null ? "" : String(data.created_comment);
-  if (!created || /^0+$/.test(created)) throw new Error(tr("Qishui didn't return the new comment ID"));
+  const comment = await createCommentRecord(id, text, "", "", "");
   commentsCache.delete(id);
-  const profile = currentSession().profile || {};
-  const comment = { id: created, author: profile.name || tr("Me"), text: value, time: Date.now(), likes: 0, liked: false };
-  if (profile.imageUrl) comment.avatarUrl = profile.imageUrl;
   return comment;
 }
 
@@ -3416,10 +3656,10 @@ export async function postComment({ trackId, text }) {
 //
 // 汽水音乐给 VIP 的完整音频（/luna/pc/track_v2）是 cenc-aes-ctr 加密的 M4A：
 // 同一个响应里带着这首歌的播放密钥（encrypt_info.spade_a，服务端下发给已登录
-// 客户端）。这里在插件内用纯 JavaScript 解密样本、把 enca 改成 mp4a，然后交给
-// /usr/bin/base64 把明文写进插件数据目录，再用 file:// 交给 App 播放——不需要
-// Node、不需要 Electron、也不需要 ffmpeg 转码。免费/匿名账号仍然走网页端
-// seo_track 的明文地址（通常只有 30–60 秒试听），拿不到的曲目返回 unavailable。
+// 客户端）。这里优先走 host.crypto 原生加速（旧宿主自动回退纯 JavaScript）解密样本、
+// 把 enca/encf 还原成 sinf/frma 里的原始 4CC（mp4a / fLaC），然后交给 /usr/bin/base64
+// 写进插件数据目录，再用 file:// 交给 App 播放——不需要 Node、Electron 或 ffmpeg 转码。
+// 免费/匿名账号仍走网页端 seo_track 明文地址，仅返回试听片段或无音源时提示 unavailable。
 
 // MyGo 的 quality 只有 standard / high / lossless 三档，映射到汽水的官方档位：
 //   standard -> medium（官方「标准」AAC 64k）
@@ -3437,19 +3677,71 @@ const AUDIO_HOSTS = ["douyinvod.com", "douyincdn.com", "douyinpic.com", "qishui.
 const AUDIO_TIMEOUT = { lossless: 120000, hi_res: 60000, highest: 45000, higher: 30000, medium: 20000 };
 const REQUESTED_TIMEOUT = { lossless: 120000, high: 30000, standard: 20000 };
 
-function allowedAudioHost(url) {
+function audioHostname(url) {
   const match = /^https:\/\/([^\/?#]+)/i.exec(String(url || ""));
-  if (!match) return false;
-  const host = match[1].toLowerCase();
+  return match ? match[1].toLowerCase() : "";
+}
+
+function allowedAudioHost(url) {
+  const host = audioHostname(url);
+  if (!host) return false;
   return AUDIO_HOSTS.some((suffix) => host === suffix || host.endsWith("." + suffix));
+}
+
+// 汽水的 v*-se-* 调度节点（如 v5-se-sjy-*）会 302 跳转到随机第三方 PCDN 域名，
+// 被宿主 fetch 的域名白名单拦截；同一条 video_list 里的 v*-luna / v*-ex-luna 则是
+// 直出音频的官方 CDN。优先排直连官方 CDN，其余合法地址留作回退。
+function isEdgeRedirectHost(url) {
+  const host = audioHostname(url);
+  return /(?:^|[.-])se-/i.test(host);
+}
+
+function hasRawVideoUrl(item) {
+  if (!item || typeof item !== "object") return false;
+  if (item.main_url) return true;
+  if (typeof item.backup_url === "string" && item.backup_url) return true;
+  if (Array.isArray(item.backup_url) && item.backup_url.some(Boolean)) return true;
+  if (item.backup_url_1) return true;
+  if (Array.isArray(item.backup_urls) && item.backup_urls.some(Boolean)) return true;
+  return false;
+}
+
+function videoUrls(item) {
+  if (!item || typeof item !== "object") return [];
+  const raw = [];
+  const push = function (value) {
+    if (Array.isArray(value)) {
+      for (const entry of value) push(entry);
+    } else if (typeof value === "string" && value) {
+      raw.push(value);
+    }
+  };
+  push(item.main_url);
+  push(item.backup_url);
+  push(item.backup_url_1);
+  push(item.backup_urls);
+  const direct = [];
+  const edge = [];
+  const seen = new Set();
+  for (const url of raw) {
+    if (seen.has(url) || !allowedAudioHost(url)) continue;
+    seen.add(url);
+    if (isEdgeRedirectHost(url)) edge.push(url);
+    else direct.push(url);
+  }
+  return direct.concat(edge);
 }
 
 function pickVideo(videos, order) {
   for (const quality of order) {
-    const found = videos.find((item) => item && item.video_meta && item.video_meta.quality === quality && item.main_url);
+    const found = videos.find(
+      (item) => item && item.video_meta && item.video_meta.quality === quality && videoUrls(item).length > 0
+    );
     if (found) return found;
   }
-  return videos.find((item) => item && item.main_url) || null;
+  const allowed = videos.find((item) => videoUrls(item).length > 0);
+  if (allowed) return allowed;
+  return videos.find(hasRawVideoUrl) || null;
 }
 
 // 两种接口的响应形状差不多：track_player.video_model 里是播放列表，曲目在
@@ -3465,9 +3757,7 @@ function playbackOf(data) {
     }
   }
   const track = (data && data.track) || (data && data.seo_track && data.seo_track.track) || {};
-  const videos = (model && Array.isArray(model.video_list) ? model.video_list : []).filter(
-    (item) => item && item.main_url
-  );
+  const videos = (model && Array.isArray(model.video_list) ? model.video_list : []).filter(hasRawVideoUrl);
   return { track, model, videos };
 }
 
@@ -3485,18 +3775,92 @@ function qualityLabel(quality) {
   return "";
 }
 
-function streamResult(url, type, meta, quality) {
+// 官方播放接口的 video_model.volume 给出曲目积分响度（LUFS）与线性峰值；
+// 按 ReplayGain 2.0 参考响度（-18 LUFS）换算为 dB 增益，交给宿主做响度归一化。
+function volumeOf(model) {
+  let raw = model && model.volume;
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch (error) {
+      raw = null;
+    }
+  }
+  if (!raw || typeof raw !== "object") return {};
+  let loudness =
+    raw.loudness === undefined || raw.loudness === null || raw.loudness === ""
+      ? NaN
+      : Number(raw.loudness);
+  let peak =
+    raw.peak === undefined || raw.peak === null || raw.peak === ""
+      ? NaN
+      : Number(raw.peak);
+  if (
+    (!(Number.isFinite(loudness) && loudness < 0 && loudness > -70) ||
+      !(Number.isFinite(peak) && peak > 0)) &&
+    typeof raw.volume_info_json === "string" &&
+    raw.volume_info_json
+  ) {
+    try {
+      const info = JSON.parse(raw.volume_info_json);
+      if (info && typeof info === "object") {
+        if (!(Number.isFinite(loudness) && loudness < 0 && loudness > -70)) {
+          const l = info.Loudness !== undefined ? Number(info.Loudness) : Number(info.loudness);
+          if (Number.isFinite(l)) loudness = l;
+        }
+        if (!(Number.isFinite(peak) && peak > 0)) {
+          const p = info.Peak !== undefined ? Number(info.Peak) : Number(info.peak);
+          if (Number.isFinite(p)) peak = p;
+        }
+      }
+    } catch (error) {
+      // 忽略异常的 volume_info_json
+    }
+  }
+  if (!(Number.isFinite(loudness) && loudness < 0 && loudness > -70)) return {};
+  const gain = Math.round((-18 - loudness) * 100) / 100;
+  const out = { gain: gain === 0 ? 0 : gain };
+  if (Number.isFinite(peak) && peak > 0) {
+    const roundedPeak = Math.round(peak * 10000) / 10000;
+    if (roundedPeak > 0) out.peak = roundedPeak;
+  }
+  return out;
+}
+
+function kbpsOf(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n >= 10000 ? Math.round(n / 1000) : Math.round(n);
+}
+
+function buildStream({ url, type, bitRate, quality, size, volume }) {
   const result = {
     url,
     type: type || "m4a",
     headers: {},
-    bitRate: Number(meta && meta.bitrate) || 0,
+    bitRate: kbpsOf(bitRate),
   };
-  const label = qualityLabel(quality);
-  if (label) result.quality = label;
-  const size = Number(meta && meta.size);
-  if (Number.isSafeInteger(size) && size > 0) result.size = size;
+  if (quality) result.quality = quality;
+  const bytes = Number(size);
+  if (Number.isSafeInteger(bytes) && bytes > 0) result.size = bytes;
+  if (volume && typeof volume.gain === "number" && Number.isFinite(volume.gain)) {
+    result.gain = volume.gain;
+    if (typeof volume.peak === "number" && Number.isFinite(volume.peak) && volume.peak > 0) {
+      result.peak = volume.peak;
+    }
+  }
   return result;
+}
+
+function streamResult(url, type, meta, quality, volume) {
+  return buildStream({
+    url,
+    type,
+    bitRate: meta && meta.bitrate,
+    quality: qualityLabel(quality),
+    size: meta && meta.size,
+    volume,
+  });
 }
 
 function servedPreview(track, model) {
@@ -3506,7 +3870,7 @@ function servedPreview(track, model) {
   return duration > 0 && served > 0 && duration - served > 5000;
 }
 
-// ---------- CENC-AES-CTR 解密（纯 JS） ----------
+// ---------- CENC-AES-CTR 解密（host.crypto 加速 + 纯 JS 回退） ----------
 // 只处理汽水当前这种非分片 M4A：stbl 里 stsz/stsc/stco 给样本位置，senc 给每个
 // 样本的 8 字节 IV，AES-CTR 的 counter 初值 = IV 后面补 8 个 0。
 
@@ -3746,27 +4110,35 @@ function b64decode(text) {
   return out.subarray(0, oi);
 }
 
-function b64encode(bytes) {
+function b64encode(bytes, offset, length) {
+  const nativeFn = host && host.crypto && host.crypto.base64Encode;
+  if (typeof nativeFn === "function") {
+    return offset === undefined ? nativeFn(bytes) : nativeFn(bytes, offset, length);
+  }
+  const view =
+    offset === undefined
+      ? bytes
+      : bytes.subarray(offset, length === undefined ? bytes.length : offset + length);
   const parts = [];
   const chunkBytes = 3 * 4096;
-  for (let i = 0; i < bytes.length; i += chunkBytes) {
-    const end = Math.min(i + chunkBytes, bytes.length);
+  for (let i = 0; i < view.length; i += chunkBytes) {
+    const end = Math.min(i + chunkBytes, view.length);
     const count = end - i;
     const codes = new Array(Math.ceil(count / 3) * 4);
     let ci = 0;
     let j = i;
     for (; j + 2 < end; j += 3) {
-      const a = bytes[j];
-      const b = bytes[j + 1];
-      const c = bytes[j + 2];
+      const a = view[j];
+      const b = view[j + 1];
+      const c = view[j + 2];
       codes[ci++] = B64CHARS.charCodeAt(a >> 2);
       codes[ci++] = B64CHARS.charCodeAt(((a & 3) << 4) | (b >> 4));
       codes[ci++] = B64CHARS.charCodeAt(((b & 15) << 2) | (c >> 6));
       codes[ci++] = B64CHARS.charCodeAt(c & 63);
     }
     if (j < end) {
-      const a = bytes[j];
-      const b = j + 1 < end ? bytes[j + 1] : 0;
+      const a = view[j];
+      const b = j + 1 < end ? view[j + 1] : 0;
       codes[ci++] = B64CHARS.charCodeAt(a >> 2);
       codes[ci++] = B64CHARS.charCodeAt(((a & 3) << 4) | (b >> 4));
       codes[ci++] = j + 1 < end ? B64CHARS.charCodeAt((b & 15) << 2) : 61;
@@ -3802,7 +4174,7 @@ function playbackKey(spadeA) {
 
 function decryptM4A(data, spadeA) {
   const key = playbackKey(spadeA);
-  if (key.length !== 16) throw new Error(tr("Invalid playback key length") + " (" + key.length + " bytes)");
+  if (key.length !== 16) throw new Error(tr("Invalid playback key length"));
   const rk = expandKey(key);
   const top = childBoxes(data, 0, data.length);
   const moov = findBox(top, "moov");
@@ -3837,10 +4209,19 @@ function decryptM4A(data, spadeA) {
   if (layout.count !== sampleCount) throw new Error(tr("Sample counts don't match"));
   const ivSize = Math.max(8, Math.min(16, Math.floor((senc.end - senc.data - 8) / sampleCount)));
   const iv = new Uint8Array(8);
-  for (let i = 0; i < sampleCount; i++) {
-    const ivBase = senc.data + 8 + i * ivSize;
-    for (let k = 0; k < 8; k++) iv[k] = ivSize >= k + 1 ? data[ivBase + k] : 0;
-    ctrXOR(rk, iv, data, layout.offsets[i], layout.sizes[i]);
+  const nativeCtr = host && host.crypto && host.crypto.aesCtrXor;
+  if (typeof nativeCtr === "function") {
+    for (let i = 0; i < sampleCount; i++) {
+      const ivBase = senc.data + 8 + i * ivSize;
+      for (let k = 0; k < 8; k++) iv[k] = ivSize >= k + 1 ? data[ivBase + k] : 0;
+      nativeCtr(key, iv, data, layout.offsets[i], layout.sizes[i]);
+    }
+  } else {
+    for (let i = 0; i < sampleCount; i++) {
+      const ivBase = senc.data + 8 + i * ivSize;
+      for (let k = 0; k < 8; k++) iv[k] = ivSize >= k + 1 ? data[ivBase + k] : 0;
+      ctrXOR(rk, iv, data, layout.offsets[i], layout.sizes[i]);
+    }
   }
   // 让播放器把样本按明文处理：加密样本入口是 enca，原始格式在 sinf/frma 里
   // （AAC 是 mp4a，无损是 fLaC），必须还原成原格式，不能一律写成 mp4a，
@@ -3957,36 +4338,55 @@ async function fetchBytes(url, timeoutMs, externalSignal) {
     if (externalSignal.aborted) forwardAbort();
     else externalSignal.addEventListener("abort", forwardAbort, { once: true });
   }
-  const timer = setTimeout(() => controller.abort(), timeoutMs || 20000);
+  const totalTimeout = timeoutMs || 20000;
+  const headerTimer = setTimeout(() => controller.abort(), Math.min(totalTimeout, 10000));
+  const timer = setTimeout(() => controller.abort(), totalTimeout);
+  let statusError = null;
   try {
     const response = await fetch(url, {
       headers: { "User-Agent": APP_UA },
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(tr("Qishui audio download failed (HTTP ") + response.status + ")");
+    clearTimeout(headerTimer);
+    if (!response.ok) {
+      statusError = new Error(tr("Qishui audio download failed (HTTP ") + response.status + ")");
+      throw statusError;
+    }
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
   } catch (error) {
     if (externalSignal && externalSignal.aborted) throw fail("unavailable", tr("Playback request was superseded"));
     if (controller.signal.aborted) throw new Error(tr("Audio download timed out. Please try again later."));
-    throw error;
+    if (statusError) throw statusError;
+    throw new Error(tr("Couldn't download audio from Qishui Music. Please try again."));
   } finally {
+    clearTimeout(headerTimer);
     clearTimeout(timer);
     if (externalSignal) externalSignal.removeEventListener("abort", forwardAbort);
   }
 }
 
-function cacheResult(fileURL, entry, meta, fallbackQuality) {
-  const result = {
+function cacheResult(fileURL, entry, meta, fallbackQuality, volume) {
+  const gain =
+    typeof entry.gain === "number" && Number.isFinite(entry.gain)
+      ? entry.gain
+      : volume && typeof volume.gain === "number" && Number.isFinite(volume.gain)
+        ? volume.gain
+        : undefined;
+  const peak =
+    typeof entry.peak === "number" && Number.isFinite(entry.peak) && entry.peak > 0
+      ? entry.peak
+      : volume && typeof volume.peak === "number" && Number.isFinite(volume.peak) && volume.peak > 0
+        ? volume.peak
+        : undefined;
+  return buildStream({
     url: fileURL,
     type: entry.type || "m4a",
-    headers: {},
-    bitRate: Number(entry.bitRate) || Number(meta && meta.bitrate) || 0,
+    bitRate: kbpsOf(entry.bitRate) || (meta && meta.bitrate),
     quality: entry.quality || fallbackQuality || "high",
-  };
-  const size = Number(entry.size) || Number(meta && meta.size) || 0;
-  if (Number.isSafeInteger(size) && size > 0) result.size = size;
-  return result;
+    size: Number(entry.size) || Number(meta && meta.size) || 0,
+    volume: gain !== undefined ? { gain, peak } : null,
+  });
 }
 
 // 已经在磁盘上的整曲直接返回，不再请求 track_v2（省 ~300ms，重复播放基本瞬间开始）。
@@ -4005,11 +4405,32 @@ function cachedStream(trackID, requested) {
   return null;
 }
 
-async function deliverEncrypted(picked, trackID, requested, run) {
+async function fetchAndDecryptAudio(picked, requested, run) {
+  const urls = videoUrls(picked);
+  if (!urls.length) throw fail("unavailable", tr("Qishui returned an unsupported playback URL"));
+  const meta = picked.video_meta || {};
+  const encrypt = picked.encrypt_info || {};
+  const keyText = String(encrypt.spade_a || "");
+  const timeoutMs = AUDIO_TIMEOUT[String(meta.quality || "")] || REQUESTED_TIMEOUT[requested] || 30000;
+  let lastError = null;
+  for (const url of urls) {
+    assertPlaybackRun(run);
+    try {
+      const encrypted = await fetchBytes(url, timeoutMs, run && run.signal);
+      assertPlaybackRun(run);
+      return decryptM4A(encrypted, keyText);
+    } catch (error) {
+      if (playbackSuperseded(run)) throw fail("unavailable", tr("Playback request was superseded"));
+      lastError = error;
+    }
+  }
+  throw lastError || new Error(tr("Couldn't download audio from Qishui Music. Please try again."));
+}
+
+async function deliverEncrypted(picked, trackID, requested, run, volume) {
   assertPlaybackRun(run);
   if (!onMac()) throw fail("setup", platformMessage());
   const meta = picked.video_meta || {};
-  const encrypt = picked.encrypt_info || {};
   const quality = String(meta.quality || "medium");
   const label = qualityLabel(quality);
   const name = "audio-" + trackID + "-" + quality + ".m4a";
@@ -4017,7 +4438,28 @@ async function deliverEncrypted(picked, trackID, requested, run) {
   const fileURL = fileURLFor(path);
   const cache = playCache();
   const saved = cache[name];
-  if (saved && saved.at) return cacheResult(fileURL, saved, meta, label);
+  if (saved && saved.at) {
+    let updated = false;
+    if (saved.gain === undefined && volume && typeof volume.gain === "number" && Number.isFinite(volume.gain)) {
+      saved.gain = volume.gain;
+      updated = true;
+    }
+    if (
+      saved.gain !== undefined &&
+      saved.peak === undefined &&
+      volume &&
+      typeof volume.peak === "number" &&
+      Number.isFinite(volume.peak) &&
+      volume.peak > 0
+    ) {
+      saved.peak = volume.peak;
+      updated = true;
+    }
+    if (updated) savePlayCache(cache);
+    return cacheResult(fileURL, saved, meta, label, volume);
+  }
+  const plain = await fetchAndDecryptAudio(picked, requested, run);
+  assertPlaybackRun(run);
   let proc;
   try {
     proc = await host.spawn(BASE64_BIN, ["-D", "-o", path]);
@@ -4045,18 +4487,12 @@ async function deliverEncrypted(picked, trackID, requested, run) {
   if (run) run.signal.addEventListener("abort", onAbort, { once: true });
   try {
     assertPlaybackRun(run);
-    const encrypted = await fetchBytes(
-      picked.main_url,
-      AUDIO_TIMEOUT[String(meta.quality || "")] || REQUESTED_TIMEOUT[requested] || 30000,
-      run && run.signal
-    );
-    assertPlaybackRun(run);
-    const plain = decryptM4A(encrypted, String(encrypt.spade_a || ""));
     // base64 分块边编边写：每块字节数是 3 的倍数，拼接后仍是合法 base64，
     // 避免一次生成几 MB 的字符串把 Goja 的内存和 GC 拖慢。
     const chunkBytes = 3 * 16384;
     for (let at = 0; at < plain.length; at += chunkBytes) {
-      proc.write(b64encode(plain.subarray(at, Math.min(at + chunkBytes, plain.length))));
+      const len = Math.min(chunkBytes, plain.length - at);
+      proc.write(b64encode(plain, at, len));
     }
     proc.closeStdin();
     const code = await proc.wait();
@@ -4067,12 +4503,16 @@ async function deliverEncrypted(picked, trackID, requested, run) {
     }
     const entry = {
       at: Date.now(),
-      bitRate: Number(meta.bitrate) || 0,
+      bitRate: kbpsOf(meta.bitrate),
       size: plain.length,
       quality: label || "high",
       request: normalizeQuality(requested),
       type: "m4a",
     };
+    if (volume && typeof volume.gain === "number" && Number.isFinite(volume.gain)) {
+      entry.gain = volume.gain;
+      if (typeof volume.peak === "number" && Number.isFinite(volume.peak) && volume.peak > 0) entry.peak = volume.peak;
+    }
     cache[name] = entry;
     const names = Object.keys(cache).filter((key) => key !== name);
     if (names.length >= PLAY_CACHE_LIMIT) {
@@ -4087,7 +4527,7 @@ async function deliverEncrypted(picked, trackID, requested, run) {
       }
     }
     savePlayCache(cache);
-    return cacheResult(fileURL, entry, meta, label);
+    return cacheResult(fileURL, entry, meta, label, volume);
   } catch (error) {
     try {
       proc.kill();
@@ -4111,15 +4551,25 @@ const TRACK_CACHE_TTL = 10 * 60 * 1000;
 const TRACK_CACHE_LIMIT = 12;
 const trackV2Cache = {};
 
+function evictTrackV2(trackID) {
+  delete trackV2Cache[trackID];
+}
+
 function fullTrackInfo(data) {
   const info = playbackOf(data);
   if (!info.videos.length || servedPreview(info.track, info.model)) return null;
   return info;
 }
 
-async function trackV2(trackID) {
-  const saved = trackV2Cache[trackID];
-  if (saved && Date.now() - saved.at < TRACK_CACHE_TTL) return saved.data;
+async function trackV2(trackID, force) {
+  if (!force) {
+    const saved = trackV2Cache[trackID];
+    if (saved && Date.now() - saved.at < TRACK_CACHE_TTL) {
+      return { data: saved.data, fromCache: true };
+    }
+  } else {
+    evictTrackV2(trackID);
+  }
   const request = function () {
     return signedPC("/luna/pc/track_v2", {
       track_id: trackID,
@@ -4146,18 +4596,36 @@ async function trackV2(trackID) {
       if (againFull) {
         data = again;
         full = againFull;
-      } else if (!full) {
+      } else {
         data = again;
       }
     } catch (error) {
       // 第二次失败时保留第一次的响应，让上层回退到网页接口
     }
   }
-  if (!full) return data;
+  if (!full) return { data, fromCache: false };
   const keys = Object.keys(trackV2Cache);
-  if (keys.length >= TRACK_CACHE_LIMIT) delete trackV2Cache[keys[0]];
+  if (keys.length >= TRACK_CACHE_LIMIT && !trackV2Cache[trackID]) delete trackV2Cache[keys[0]];
   trackV2Cache[trackID] = { at: Date.now(), data };
-  return data;
+  return { data, fromCache: false };
+}
+
+async function deliverFromTrackV2(data, order, trackID, requested, run) {
+  const info = playbackOf(data);
+  if (!info.videos.length || servedPreview(info.track, info.model)) return null;
+  const picked = pickVideo(info.videos, order);
+  if (!picked) return null;
+  const volume = volumeOf(info.model);
+  const encrypt = picked.encrypt_info || {};
+  const meta = picked.video_meta || {};
+  if (encrypt.spade_a && encrypt.encrypt !== false) {
+    return await deliverEncrypted(picked, trackID, requested, run, volume);
+  }
+  const urls = videoUrls(picked);
+  if (urls.length) {
+    return streamResult(urls[0], meta.vtype ? String(meta.vtype) : "m4a", meta, meta.quality, volume);
+  }
+  return null;
 }
 
 async function streamInternal(params, run) {
@@ -4172,24 +4640,29 @@ async function streamInternal(params, run) {
   let fullError = null;
   // 非 macOS 平台没有官方签名模块：跳过 track_v2，直接走匿名网页接口（可播普通曲目）。
   if (active && onMac()) {
+    const startedAt = Date.now();
     try {
       assertPlaybackRun(run);
-      const full = await trackV2(trackID);
+      const fetched = await trackV2(trackID, false);
       assertPlaybackRun(run);
-      const info = playbackOf(full);
-      if (info.videos.length && !servedPreview(info.track, info.model)) {
-        const picked = pickVideo(info.videos, order);
-        if (picked) {
-          const encrypt = picked.encrypt_info || {};
-          const meta = picked.video_meta || {};
-          if (encrypt.spade_a && encrypt.encrypt !== false) {
-            return await deliverEncrypted(picked, trackID, requested, run);
-          }
-          const url = String(picked.main_url);
-          if (allowedAudioHost(url)) {
-            return streamResult(url, meta.vtype ? String(meta.vtype) : "m4a", meta, meta.quality);
+      try {
+        const result = await deliverFromTrackV2(fetched.data, order, trackID, requested, run);
+        if (result) return result;
+      } catch (error) {
+        // CDN 节点 302 越界或瞬时失效时，不能把坏地址留在 10 分钟缓存里；
+        // 命中旧缓存或快速失败时换一份新 track_v2 再试一次。
+        evictTrackV2(trackID);
+        if (playbackSuperseded(run)) throw error;
+        if (error && (error.code === "signIn" || error.code === "setup")) throw error;
+        if (!error || !error.code) {
+          if (fetched.fromCache || Date.now() - startedAt < 10000) {
+            const fresh = await trackV2(trackID, true);
+            assertPlaybackRun(run);
+            const retryResult = await deliverFromTrackV2(fresh.data, order, trackID, requested, run);
+            if (retryResult) return retryResult;
           }
         }
+        throw error;
       }
     } catch (error) {
       // 这次播放已经被更新的选择取代：直接结束，别再回退到试听接口浪费一次请求。
@@ -4199,12 +4672,9 @@ async function streamInternal(params, run) {
     }
   }
   assertPlaybackRun(run);
-  // 签名不可用（没装官方客户端 / 没允许启动程序）时，优先把这个原因告诉用户，
-  // 而不是笼统的「只剩试听」。
-  const finalError = function (error) {
-    if (fullError && fullError.code === "setup") return fullError;
-    return error;
-  };
+  // 签名不可用、没允许启动程序，或完整音频下载失败时，优先把真实原因告诉用户，
+  // 而不是回退到 30 秒试听后误报成「无版权 / 只剩试听」。
+  const finalError = (error) => fullError || error;
   const data = await seoTrack(trackID);
   assertPlaybackRun(run);
   const info = playbackOf(data);
@@ -4214,10 +4684,9 @@ async function streamInternal(params, run) {
   const picked = pickVideo(info.videos, order);
   if (!picked) throw finalError(fail("unavailable", tr("Qishui didn't return a playable quality for this song")));
   const meta = picked.video_meta || {};
-  const url = String(picked.main_url);
-  if (!allowedAudioHost(url)) throw fail("unavailable", tr("Qishui returned an unsupported playback URL"));
+  const urls = videoUrls(picked);
+  if (!urls.length) throw finalError(fail("unavailable", tr("Qishui returned an unsupported playback URL")));
   if (servedPreview(info.track, info.model)) {
-    if (fullError && fullError.code === "unavailable") throw fullError;
     if (!active) throw fail("signIn", tr("Sign in to Qishui Music to play full songs"));
     if (!onMac()) {
       throw fail("unavailable", tr("This song is preview-only (membership), and full playback isn't supported on Windows/Linux yet"));
@@ -4226,7 +4695,7 @@ async function streamInternal(params, run) {
       fail("unavailable", tr("This song is preview-only (membership or purchase) and can't be played in full"))
     );
   }
-  return streamResult(url, meta.vtype ? String(meta.vtype) : "m4a", meta, meta.quality);
+  return streamResult(urls[0], meta.vtype ? String(meta.vtype) : "m4a", meta, meta.quality, volumeOf(info.model));
 }
 
 // 宿主快速切歌时，旧的一次 stream() 仍会在后台跑完；新的请求会取消旧的下载和

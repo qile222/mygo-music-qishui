@@ -18,7 +18,7 @@
 - [9. 电台](#9-电台)
 - [10. 评论](#10-评论)
 - [11. 歌词](#11-歌词)
-- [12. 收藏专辑](#12-收藏专辑)
+- [12. 收藏歌单 / 收藏专辑 / 关注艺人](#12-收藏歌单--收藏专辑--关注艺人)
 - [13. 首页次屏 / 个性化流 / 场景模式](#13-首页次屏--个性化流--场景模式)
 - [14. 错误特征与容错](#14-错误特征与容错)
 - [15. 分页约定](#15-分页约定)
@@ -199,16 +199,13 @@
 - 每个 inner：{type:"discover_playlist", title, inner_block_id, resources[0].entity.playlist}，无 next_cursor。
 - 样本：fixtures/home_discover_mix.json。
 
-### 1.3 场景模式入口（可选）⚠️
+### 1.3 场景模式入口（PC 公开接口）✅
 
-    POST https://api.qishui.com/luna/feed/mode
+    POST https://api.qishui.com/luna/pc/feed/mode
     {}
 
-- 匿名可用，约 18 KB。返回 feed_mode_bar.feed_mode[]：
-  - {type:"preference_mode", title:"推荐", mode:"default"}
-  - {type:"scene_mode", title:"Chill 放松", scene_mode_id:3, sub_queue_type:"scene_mode_chill", url_info, cutover_toast}
-  - 实测还有「快乐时光」(id=5, scene_mode_happy)、「专注模式」等。
-- ⚠️ 点击场景模式后的内容流接口**未实测**，暂不建议做入口；或仅作为静态展示。
+- 匿名或带 Cookie 均可用。返回 `feed_mode_block[].feed_mode[]`（`text`、`entity.feed_scene_mode.scene_mode_id`、`url_info`、`cutover_toast`）。
+- 播放时通过 `POST /luna/pc/feed/song-tab` 的 `feed_preference`（`scene_mode_id` 或 `preference_mode`）持续取歌，完整参数与去重规则见附录 A5。
 
 ---
 
@@ -297,10 +294,10 @@
 
 ### 3.1 结论（先看这个）
 
-- **唯一可播放的明文路径**：GET https://beta-luna.douyin.com/luna/h5/seo_track?track_id=...&device_platform=web。
+- **匿名 / 非 macOS 明文路径**：GET https://beta-luna.douyin.com/luna/h5/seo_track?track_id=...&device_platform=web。
 - 它返回的 track_player.video_model（**JSON 字符串**）里有 video_list[].main_url：明文 M4A/AAC，支持 Range(206) 与 HEAD(200)，无 DRM。
-- POST /luna/media-player、POST /luna/pc/track_v2 返回的音频**全部加密**（encrypt_info.encryption_method="cenc-aes-ctr"，gear_des_key 含 audio_encrypt），ffprobe 能读时长但解码报错——**不能作为播放源**。
-- 播放 URL 匿名可得，**不需要 Cookie**；带 Cookie 只影响 state.is_collected（是否已喜欢）。
+- **macOS 已登录完整播放主路径**：POST {PC}/luna/pc/track_v2（需 Cookie + 官方签名 X-Helios/X-Medusa + X-SS-STUB，见附录 A2 与 `docs/PLAYBACK.md`），为有权益曲目下发完整时长 `video_list[]`（含 lossless/higher/medium）及该曲播放密钥 `encrypt_info.spade_a`，插件用 CENC-AES-CTR 解密后落盘到 `host.dataDir` 交给播放器；未签名或直接丢给外部播放器无法解码。
+- seo_track 播放 URL 匿名可得，**不需要 Cookie**；带 Cookie 只影响 state.is_collected（是否已喜欢）。
 - 曲目覆盖不是 100%：实测 20 首有 17 首能拿到 track_player；拿不到的按 §3.4 降级。
 
 ### 3.2 请求与解析 ✅
@@ -482,10 +479,10 @@ APP host 等价：POST {APP}/luna/playlist/detail body {playlist_id, cursor, cou
 - 来源：我喜欢歌单曲目、seo_track（**带 Cookie** 请求时）。PC 搜索/专辑等带 Cookie 时是否回填未逐一验证 ⚠️。
 - 插件 UI 可在播放/详情时用 seo_track(带 Cookie) 判断红心状态。
 
-### 5.4 写操作（不支持）❌
+### 5.4 写操作（macOS 官方签名）✅
 
-- 收藏/取消收藏、创建/修改歌单、评论/点赞等写接口（/luna/pc/me/collection/*、/luna/me/playlist/media/*、/luna/pc/comments/create 等）均需 X-Helios/X-Medusa 签名，实测未通过。
-- **本插件只读**：不实现写收藏/写评论；如果 UI 需要红心，仅展示状态（或本地标记，不要误导用户）。
+- 收藏/取消收藏歌曲、创建/重命名/删除/增删歌/排序自建普通歌单、收藏/取消收藏歌单与专辑、关注/取消关注艺人、评论与回复点赞/发表等写接口均需 Cookie + 官方请求签名（`X-Helios` / `X-Medusa` + `X-SS-STUB`）。
+- 插件在 macOS 上通过复用本机官方汽水音乐客户端运行时调用官方 `bdms.node` 完成签名并已完整实现上述写能力（详见附录 A2–A4 及 `docs/PLAYBACK.md`）；未安装官方客户端或非 macOS 环境保持只读并给出清晰提示。
 
 ---
 
@@ -727,23 +724,23 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
       return { lrc: lrc.join('\n'), lines };
     }
 
-- 注意：字级时间 <wordStart,dur,0> 是**行内相对偏移**（相对行起始），要加上行 start 才是绝对时间。
-- 推荐 UI 用 lines 做逐行高亮（start_ms 比较播放进度），可选字级卡拉 OK。
+- 注意：字级时间 <wordStart,dur,0> 是**行内相对偏移**（相对行起始），要加上行 start 才是绝对时间；返回给 MyGo 宿主的 `LyricLine.start/end` 与 `LyricWord.start/end` **必须是毫秒整数（Go `int64`）**，传秒的小数会让整个响应反序列化失败。
+- 推荐 UI 用 lines 做逐行高亮（毫秒整数比较播放进度），可选字级卡拉 OK。
 - 行文本可能含空格/英文；不要丢字。
 
 ---
 
-## 12. 收藏专辑
+## 12. 收藏歌单 / 收藏专辑 / 关注艺人
 
-### 12.1 端点 ⚠️（空形状实测，非空形状未实测）
+### 12.1 签名读取端点 ✅（见附录 A4）
 
-    GET https://api.qishui.com/luna/pc/me/collection/mixed?aid=386088&cursor=&count=20&item_types=album&item_types=playlist
-    Cookie: <宿主注入>
+    GET https://api.qishui.com/luna/pc/me/collection/mixed?aid=386088&...&cursor=&count=50&item_types=album
+    GET https://api.qishui.com/luna/pc/me/collection/artist?aid=386088&...&cursor=&count=50
+    Cookie + X-Helios / X-Medusa（官方签名 GET）
 
-- 示例账号收藏为空时 → 200，仅 106 B：{status_info}（没有 mixed_collections/total_num/has_more）。见 fixtures/collection_empty.json 与 fixtures/errors.json。
-- 缺少参数/无 Cookie 的失败形状：缺 aid + Cookie → 1000006；/luna/pc/me/collection/album、/luna/pc/me/collection/playlist 均 **404**；/luna/pc/me/collection/artist?aid=386088 → 200 126 B {status_info,next_cursor:"0_0"}（空）。
-- 非空响应结构（参考实现事实，**未实测** ❓）：mixed_collections[]，每项 item{item_type:"album", album{...}} 或 {item_type:"playlist", playlist{...}}，另有 has_more、next_cursor、total_num。
-- 实现建议：请求后判 Array.isArray(j.mixed_collections) && j.mixed_collections.length；否则显示空态。单曲收藏（/luna/pc/me/collection/media）可作后续扩展，需签名，当前不做。
+- 收藏歌单与收藏专辑通过 `collection/mixed` 读取（`item_types` 必须重复同名查询参数，不能拼成 `album,playlist`）：非空时返回 `mixed_collections[{item_type:"album"|"playlist", album|playlist}]`、`has_more`、`next_cursor`；为空时只返回 `{status_info}`（见 `fixtures/collection_empty.json`）。
+- 关注艺人通过 `collection/artist` 读取：返回 `artists[]`、`has_more`、`next_cursor`（到底或为空时 `next_cursor === "0_0"`）；用于侧栏 `Following`（`browse({page:"following"})`）、个人主页 `My Page`（`browse({page:"me"})`）以及歌手详情页 `following` 状态。
+- 写入后服务端有 1–3 秒最终一致性：插件在写操作后清空对应 `collectionCache`，界面刷新以服务端为准，不做乐观更新。完整写接口列表见附录 A2–A4。
 
 ---
 
@@ -889,8 +886,8 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | 2 | VIP-only 曲目只给试听片段（实测 60.001s / 30–60s 不等） | 用户以为能听整曲 | 用 video_duration vs duration 判断并标「试听」；**不要尝试解密** |
 | 3 | 试听片段实际起点未知（preview.start 60000ms 但无法验证） | 试听内容可能从曲中开始，进度条映射不准 | 按 0:00 播放并标试听；或直接展示为「试听片段」不显示精确进度 |
 | 4 | /luna/pc/search/mixed 始终 1000004（带完整 pcSearchParams 也不行）；/search/track 对纯歌手名可能为空，且 2026-11-16 晚曾间歇返回空 body | 无法做分页「综合」搜索；Songs 按歌手名可能为空 | 用四个独立端点拼多 tab；单曲为空时用 /luna/pc/search/all 兜底（§2.1.1）；不要依赖 mixed |
-| 5 | 写操作（收藏/评论/歌单编辑）全部需要签名 | 插件只能只读 | 不实现；UI 不要提供无效按钮 |
-| 6 | 收藏专辑非空响应未实测（示例账号为空） | 非空账号的展示字段不确定 | 按参考结构兜底 + 空态处理；上线前用有收藏的账号补测 |
+| 5 | 写操作（收藏/评论/歌单编辑/关注）全部需要官方请求签名 | 仅 macOS + 已安装官方客户端可用 | 已通过常驻官方签名进程实现（见附录 A2–A4）；未装客户端时给出清晰提示 |
+| 6 | 收藏与关注写入后有 1–3s 最终一致性延迟 | 写完立刻再读可能仍是旧列表 | 写后清 `collectionCache`，不做乐观更新，刷新以服务端为准 |
 | 7 | comments count 在不同 host/Cookie 下不一致 | 显示的总数可能不准 | 只作参考，翻页用 has_more |
 | 8 | artists albums 每页条数不固定、next 跳跃 | 可能漏专辑/重复 | 按 next_cursor 翻页 + album id 去重 |
 | 9 | 歌单 count_tracks 抖动且与 metadata 不一致（示例计数会小幅抖动） | 展示数字不准 | 以实际曲目数组长度为准 |
@@ -898,7 +895,7 @@ krc 每行结构：[行起始ms,行时长ms]<字起始ms,字时长ms,0>字<...>.
 | 11 | APP discover 依赖 App UA + 公共 query（iid 等）；未来可能失效 | 首页/榜单不可用 | 失败时降级：PC discover/mix 仍可拿歌单；榜单可缓存 |
 | 12 | 未做真机 MyGo 集成验证（本任务只测绘） | 运行时 Cookie/网络策略可能不同 | 见 docs/RUNTIME.md；Lead 负责集成验证 |
 | 13 | 未验证 aid 之外是否还需 app_name/device_id 等参数（PC 读接口日常可用） | 低 | 保持最小参数；出错再补 |
-| 14 | 未实测「单曲收藏列表」「关注艺人列表」等其他个人页 | 功能范围外 | 当前不做 |
+| 14 | 收藏歌单/专辑与关注艺人读取接口必须走官方签名 GET | 未装官方客户端时拿不到收藏列表 | `album`/`artist`/`playlist`/`me` 读取收藏状态时做容错降级，不拖垮详情页 |
 
 ---
 

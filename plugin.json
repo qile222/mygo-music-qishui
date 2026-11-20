@@ -1,7 +1,7 @@
 {
   "id": "qishui",
   "name": "Qishui Music",
-  "version": "0.9.15",
+  "version": "0.9.16",
   "minAppVersion": "0.1.22",
   "main": "index.js",
   "playback": "stream",
@@ -40,6 +40,11 @@
       "builtin": "savedAlbums",
       "title": "Saved Albums",
       "icon": "album"
+    },
+    {
+      "page": "following",
+      "title": "Following",
+      "icon": "artist"
     },
     {
       "page": "history",

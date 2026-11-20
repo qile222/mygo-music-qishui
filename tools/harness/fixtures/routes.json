@@ -129,6 +129,647 @@
         "type": "m4a",
         "size": 1024000
       }
+    },
+    {
+      "url": "api.qishui.com/passport/web/get_qrcode/",
+      "json": {
+        "status_code": 0,
+        "data": {
+          "token": "synthetic-qr-token",
+          "qrcode_index_url": "https://api.qishui.com/mock-qr"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "url": "api.qishui.com/passport/web/check_qrconnect/",
+      "headers": {
+        "set-cookie": "sessionid_ss=synthetic_harness_session; Path=/"
+      },
+      "json": {
+        "status_code": 0,
+        "data": {
+          "status": "3"
+        }
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/me?",
+      "json": {
+        "status_code": 0,
+        "my_info": {
+          "id": "1000000000000000001",
+          "nickname": "Synthetic Listener",
+          "medium_avatar_url": {
+            "urls": [
+              "https://p3-luna.douyinpic.com/mock/listener-avatar.jpg"
+            ],
+            "need_complete_url": true
+          }
+        }
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/search/track",
+      "json": {
+        "result_groups": [
+          {
+            "id": "tracks",
+            "has_more": false,
+            "data": [
+              {
+                "entity": {
+                  "track": {
+                    "id": "1001",
+                    "name": "Synthetic Song",
+                    "duration": 180000,
+                    "artists": [
+                      {
+                        "id": "2001",
+                        "name": "Synthetic Artist",
+                        "count_tracks": 12
+                      }
+                    ],
+                    "album": {
+                      "id": "3001",
+                      "name": "Synthetic Album",
+                      "release_date": 1704067200,
+                      "url_cover": {
+                        "urls": [
+                          "https://p3-luna.douyinpic.com/img/"
+                        ],
+                        "uri": "mock-album-cover",
+                        "template_prefix": "tplv-mock"
+                      }
+                    },
+                    "stats": {
+                      "count_collected": 42,
+                      "count_comment": 5
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/search/album",
+      "json": {
+        "result_groups": [
+          {
+            "id": "albums",
+            "has_more": false,
+            "data": [
+              {
+                "entity": {
+                  "album": {
+                    "id": "3001",
+                    "name": "Synthetic Album",
+                    "release_date": 1704067200,
+                    "artists": [
+                      {
+                        "id": "2001",
+                        "name": "Synthetic Artist"
+                      }
+                    ],
+                    "url_cover": {
+                      "urls": [
+                        "https://p3-luna.douyinpic.com/img/"
+                      ],
+                      "uri": "mock-album-cover",
+                      "template_prefix": "tplv-mock"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/search/artist",
+      "json": {
+        "result_groups": [
+          {
+            "id": "artists",
+            "has_more": false,
+            "data": [
+              {
+                "entity": {
+                  "artist": {
+                    "id": "2001",
+                    "name": "Synthetic Artist",
+                    "count_tracks": 12,
+                    "url_avatar": {
+                      "urls": [
+                        "https://p3-luna.douyinpic.com/img/"
+                      ],
+                      "uri": "mock-artist-avatar",
+                      "template_prefix": "tplv-mock"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/search/playlist",
+      "json": {
+        "result_groups": [
+          {
+            "id": "playlists",
+            "has_more": false,
+            "data": [
+              {
+                "entity": {
+                  "playlist": {
+                    "id": "4001",
+                    "title": "Synthetic Playlist",
+                    "count_tracks": 8,
+                    "type": 2,
+                    "owner": {
+                      "id": "9001",
+                      "nickname": "Synthetic Curator"
+                    },
+                    "url_cover": {
+                      "urls": [
+                        "https://p3-luna.douyinpic.com/img/"
+                      ],
+                      "uri": "mock-playlist-cover",
+                      "template_prefix": "tplv-mock"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/sug",
+      "json": {
+        "sugs": [
+          {
+            "suggestion": "Synthetic Song"
+          },
+          {
+            "suggestion": "Synthetic Artist"
+          }
+        ]
+      }
+    },
+    {
+      "url": "beta-luna.douyin.com/luna/sug",
+      "json": {
+        "sugs": [
+          {
+            "suggestion": "Synthetic Song"
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/feed/mode",
+      "json": {
+        "feed_mode_block": [
+          {
+            "feed_mode": [
+              {
+                "text": "Chill",
+                "cutover_toast": "Synthetic chill mode",
+                "entity": {
+                  "feed_scene_mode": {
+                    "scene_mode_id": 3
+                  }
+                },
+                "url_info": {
+                  "urls": [
+                    "https://p3-luna.douyinpic.com/img/"
+                  ],
+                  "uri": "mock-mode-3",
+                  "template_prefix": "tplv-mock"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "url": "beta-luna.douyin.com/luna/discover",
+      "json": {
+        "blocks": [
+          {
+            "type": "discover_feed_playlist",
+            "inner_block": [
+              {
+                "resources": [
+                  {
+                    "type": "playlist",
+                    "entity": {
+                      "playlist": {
+                        "id": "4001",
+                        "title": "Synthetic Playlist",
+                        "count_tracks": 8,
+                        "type": 2,
+                        "owner": {
+                          "id": "9001",
+                          "nickname": "Synthetic Curator"
+                        },
+                        "url_cover": {
+                          "urls": [
+                            "https://p3-luna.douyinpic.com/img/"
+                          ],
+                          "uri": "mock-playlist-cover",
+                          "template_prefix": "tplv-mock"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/discover/mix",
+      "json": {
+        "has_more": false,
+        "inner_block": [
+          {
+            "type": "discover_playlist",
+            "resources": [
+              {
+                "type": "playlist",
+                "entity": {
+                  "playlist": {
+                    "id": "4002",
+                    "title": "Synthetic Mix Playlist",
+                    "count_tracks": 10,
+                    "type": 2,
+                    "owner": {
+                      "id": "9002",
+                      "nickname": "Synthetic Editor"
+                    },
+                    "url_cover": {
+                      "urls": [
+                        "https://p3-luna.douyinpic.com/img/"
+                      ],
+                      "uri": "mock-mix-cover",
+                      "template_prefix": "tplv-mock"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/discover",
+      "json": {
+        "blocks": [
+          {
+            "type": "discover_playlist_mix",
+            "inner_block": [
+              {
+                "inner_block_id": "5001",
+                "resources": [
+                  {
+                    "resource_id": "5001",
+                    "type": "radio",
+                    "style": {
+                      "title": "Synthetic Radio",
+                      "desc": "Synthetic style radio",
+                      "type": 5,
+                      "cover_url_list": [
+                        {
+                          "urls": [
+                            "https://p3-luna.douyinpic.com/img/"
+                          ],
+                          "uri": "mock-radio-cover",
+                          "template_prefix": "tplv-mock"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/charts/",
+      "json": {
+        "chart": {
+          "id": "7036274230471712007",
+          "title": "Synthetic Chart",
+          "count_tracks": 1,
+          "style": {
+            "desc": "Synthetic weekly chart",
+            "bg_url": {
+              "urls": [
+                "https://p3-luna.douyinpic.com/img/"
+              ],
+              "uri": "mock-chart-cover",
+              "template_prefix": "tplv-mock"
+            }
+          },
+          "track_ranks": [
+            {
+              "rank": 1,
+              "track": {
+                "id": "1001",
+                "name": "Synthetic Song",
+                "duration": 180000,
+                "artists": [
+                  {
+                    "id": "2001",
+                    "name": "Synthetic Artist"
+                  }
+                ],
+                "album": {
+                  "id": "3001",
+                  "name": "Synthetic Album"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/feed/song-tab",
+      "json": {
+        "has_more": false,
+        "items": [
+          {
+            "id": "1001",
+            "type": "track",
+            "entity": {
+              "track_wrapper": {
+                "track": {
+                  "id": "1001",
+                  "name": "Synthetic Song",
+                  "duration": 180000,
+                  "artists": [
+                    {
+                      "id": "2001",
+                      "name": "Synthetic Artist"
+                    }
+                  ],
+                  "album": {
+                    "id": "3001",
+                    "name": "Synthetic Album"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "url": "beta-luna.douyin.com/luna/playlist/detail",
+      "json": {
+        "playlist": {
+          "id": "1",
+          "title": "Synthetic Playlist",
+          "count_tracks": 1,
+          "type": 2,
+          "owner": {
+            "id": "9001",
+            "nickname": "Synthetic Curator"
+          },
+          "url_cover": {
+            "urls": [
+              "https://p3-luna.douyinpic.com/img/"
+            ],
+            "uri": "mock-playlist-cover",
+            "template_prefix": "tplv-mock"
+          }
+        },
+        "media_resources": [
+          {
+            "id": "1001",
+            "type": "track",
+            "entity": {
+              "track_wrapper": {
+                "track": {
+                  "id": "1001",
+                  "name": "Synthetic Song",
+                  "duration": 180000,
+                  "artists": [
+                    {
+                      "id": "2001",
+                      "name": "Synthetic Artist"
+                    }
+                  ],
+                  "album": {
+                    "id": "3001",
+                    "name": "Synthetic Album"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "has_more": false,
+        "next_cursor": "1"
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/albums/1",
+      "json": {
+        "album_info": {
+          "id": "1",
+          "name": "Synthetic Album",
+          "release_date": 1704067200,
+          "artists": [
+            {
+              "id": "2001",
+              "name": "Synthetic Artist"
+            }
+          ],
+          "url_cover": {
+            "urls": [
+              "https://p3-luna.douyinpic.com/img/"
+            ],
+            "uri": "mock-album-cover",
+            "template_prefix": "tplv-mock"
+          }
+        },
+        "tracks": [
+          {
+            "id": "1001",
+            "name": "Synthetic Song",
+            "duration": 180000,
+            "artists": [
+              {
+                "id": "2001",
+                "name": "Synthetic Artist"
+              }
+            ],
+            "album": {
+              "id": "1",
+              "name": "Synthetic Album"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/artists/1/tracks",
+      "json": {
+        "tracks": [
+          {
+            "id": "1001",
+            "name": "Synthetic Song",
+            "duration": 180000,
+            "artists": [
+              {
+                "id": "1",
+                "name": "Synthetic Artist"
+              }
+            ],
+            "album": {
+              "id": "3001",
+              "name": "Synthetic Album"
+            }
+          }
+        ],
+        "has_more": false,
+        "next_cursor": "1"
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/artists/1/albums",
+      "json": {
+        "albums": [
+          {
+            "id": "3001",
+            "name": "Synthetic Album",
+            "release_date": 1704067200,
+            "artists": [
+              {
+                "id": "1",
+                "name": "Synthetic Artist"
+              }
+            ]
+          }
+        ],
+        "has_more": false,
+        "next_cursor": "1"
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/artists/1?",
+      "json": {
+        "artist_info": {
+          "id": "1",
+          "name": "Synthetic Artist",
+          "count_tracks": 1,
+          "url_avatar": {
+            "urls": [
+              "https://p3-luna.douyinpic.com/img/"
+            ],
+            "uri": "mock-artist-avatar",
+            "template_prefix": "tplv-mock"
+          }
+        },
+        "hot_tracks": [],
+        "hot_albums": []
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/comments/1/replies",
+      "json": {
+        "count": "1",
+        "cursor": "1",
+        "has_more": false,
+        "reply_infos": [
+          {
+            "id": "8002",
+            "content": "Synthetic reply comment",
+            "count_digged": 1,
+            "time_created": 1704067300,
+            "root_comment_id": "1",
+            "user": {
+              "id": "9002",
+              "nickname": "Synthetic Replier",
+              "thumb_avatar_url": {
+                "urls": [
+                  "https://p3-luna.douyinpic.com/mock/replier.jpg"
+                ],
+                "need_complete_url": true
+              }
+            },
+            "reply_to": {
+              "user": {
+                "nickname": "Synthetic Commenter"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "url": "api.qishui.com/luna/pc/comments?",
+      "json": {
+        "count": "1",
+        "cursor": "1",
+        "has_more": false,
+        "comments": [
+          {
+            "id": "1",
+            "content": "Synthetic root comment",
+            "count_digged": 3,
+            "count_reply": 1,
+            "time_created": 1704067200,
+            "user": {
+              "id": "9001",
+              "nickname": "Synthetic Commenter",
+              "thumb_avatar_url": {
+                "urls": [
+                  "https://p3-luna.douyinpic.com/mock/commenter.jpg"
+                ],
+                "need_complete_url": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "url": "beta-luna.douyin.com/luna/h5/seo_track",
+      "json": {
+        "lyric": {
+          "type": "krc",
+          "content": "[1000,2000]<0,500,0>Mock <500,1500,0>lyric"
+        },
+        "seo_track": {
+          "track": {
+            "id": "1",
+            "name": "Synthetic Song",
+            "duration": 180000
+          }
+        },
+        "track_player": {
+          "video_model": "{\"video_duration\":\"180.0\",\"volume\":{\"loudness\":-14.5,\"peak\":0.91},\"video_list\":[{\"main_url\":\"https://v5-luna.douyinvod.com/mock/audio-1.m4a\",\"video_meta\":{\"quality\":\"higher\",\"vtype\":\"m4a\",\"bitrate\":128000,\"size\":2880000}}]}"
+        }
+      }
     }
   ]
 }
