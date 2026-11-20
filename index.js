@@ -108,7 +108,9 @@ function dateText(seconds) {
 // 汽水返回的 ID 是 19 位整数，超出 JS 安全整数范围。先给超长整数字面量加引号再
 // JSON.parse，否则 ID 会被四舍五入成另一个曲目/歌单。
 function parseData(text) {
-  let out = "";
+  if (!/\d{16}/.test(text)) return JSON.parse(text);
+  let copyFrom = 0;
+  let parts = null;
   let i = 0;
   const n = text.length;
   while (i < n) {
@@ -124,7 +126,6 @@ function parseData(text) {
         if (c === '"') break;
         j++;
       }
-      out += text.slice(i, j + 1);
       i = j + 1;
       continue;
     }
@@ -148,17 +149,19 @@ function parseData(text) {
       const starts = i + (ch === "-" ? 1 : 0);
       const digits = plainInteger ? j - starts : 0;
       if (plainInteger && digits >= 16) {
-        out += '"' + text.slice(i, j) + '"';
-      } else {
-        out += text.slice(i, j);
+        if (!parts) parts = [];
+        if (i > copyFrom) parts.push(text.slice(copyFrom, i));
+        parts.push('"' + text.slice(i, j) + '"');
+        copyFrom = j;
       }
       i = j;
       continue;
     }
-    out += ch;
     i++;
   }
-  return JSON.parse(out);
+  if (!parts) return JSON.parse(text);
+  if (copyFrom < n) parts.push(text.slice(copyFrom));
+  return JSON.parse(parts.join(""));
 }
 
 function normalizeWebURL(value) {
@@ -4252,7 +4255,13 @@ function playbackKey(spadeA) {
   return key;
 }
 
-function decryptM4A(data, spadeA) {
+function nextMacrotask() {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, 0);
+  });
+}
+
+async function decryptM4A(data, spadeA, run) {
   const key = playbackKey(spadeA);
   if (key.length !== 16) throw new Error(tr("Invalid playback key length"));
   const rk = expandKey(key);
@@ -4292,12 +4301,22 @@ function decryptM4A(data, spadeA) {
   const nativeCtr = host && host.crypto && host.crypto.aesCtrXor;
   if (typeof nativeCtr === "function") {
     for (let i = 0; i < sampleCount; i++) {
+      if (i > 0 && (i & 511) === 0) {
+        if (run) assertPlaybackRun(run);
+        await nextMacrotask();
+        if (run) assertPlaybackRun(run);
+      }
       const ivBase = senc.data + 8 + i * ivSize;
       for (let k = 0; k < 8; k++) iv[k] = ivSize >= k + 1 ? data[ivBase + k] : 0;
       nativeCtr(key, iv, data, layout.offsets[i], layout.sizes[i]);
     }
   } else {
     for (let i = 0; i < sampleCount; i++) {
+      if (i > 0 && (i & 511) === 0) {
+        if (run) assertPlaybackRun(run);
+        await nextMacrotask();
+        if (run) assertPlaybackRun(run);
+      }
       const ivBase = senc.data + 8 + i * ivSize;
       for (let k = 0; k < 8; k++) iv[k] = ivSize >= k + 1 ? data[ivBase + k] : 0;
       ctrXOR(rk, iv, data, layout.offsets[i], layout.sizes[i]);
@@ -4498,7 +4517,7 @@ async function fetchAndDecryptAudio(picked, requested, run) {
     try {
       const encrypted = await fetchBytes(url, timeoutMs, run && run.signal);
       assertPlaybackRun(run);
-      return decryptM4A(encrypted, keyText);
+      return await decryptM4A(encrypted, keyText, run);
     } catch (error) {
       if (playbackSuperseded(run)) throw fail("unavailable", tr("Playback request was superseded"));
       lastError = error;
@@ -4570,7 +4589,12 @@ async function deliverEncrypted(picked, trackID, requested, run, volume) {
     // base64 分块边编边写：每块字节数是 3 的倍数，拼接后仍是合法 base64，
     // 避免一次生成几 MB 的字符串把 Goja 的内存和 GC 拖慢。
     const chunkBytes = 3 * 16384;
-    for (let at = 0; at < plain.length; at += chunkBytes) {
+    for (let at = 0, step = 0; at < plain.length; at += chunkBytes, step++) {
+      if (step > 0 && (step & 7) === 0) {
+        assertPlaybackRun(run);
+        await nextMacrotask();
+        assertPlaybackRun(run);
+      }
       const len = Math.min(chunkBytes, plain.length - at);
       proc.write(b64encode(plain, at, len));
     }
@@ -4803,11 +4827,21 @@ async function streamInternal(params, run) {
 // 宿主快速切歌时，旧的一次 stream() 仍会在后台跑完；新的请求会取消旧的下载和
 // base64 进程，只让用户最后选中的那首歌继续，避免最后一首排队等待。同一首的
 // 宿主 stale retry 是例外，它不会取消当前请求（见 beginPlaybackRun）。
+const playbackInFlight = new Map();
+
 export async function stream(params) {
+  const key = playbackRunKey(params);
+  const existing = playbackInFlight.get(key);
+  if (existing) return existing;
   const run = beginPlaybackRun(params);
-  try {
-    return await streamInternal(params, run);
-  } finally {
-    finishPlaybackRun(run);
-  }
+  const promise = (async () => {
+    try {
+      return await streamInternal(params, run);
+    } finally {
+      finishPlaybackRun(run);
+      if (playbackInFlight.get(key) === promise) playbackInFlight.delete(key);
+    }
+  })();
+  playbackInFlight.set(key, promise);
+  return promise;
 }
