@@ -332,6 +332,8 @@ function resetSessionCaches() {
   discoverRadioPending = null;
   dailyCache = null;
   dailyPending = null;
+  dailyRoundOffset = 0;
+  dailyPreviousBatch = [];
   feedModeCache = null;
   chartCache = null;
   likedCache = null;
@@ -1670,13 +1672,18 @@ async function songTabPage(cursor, round, pending) {
   };
 }
 
-// 发现页 For You 的「More」：官方猜你喜欢每个请求最多给 18 首。按固定 cursor 并行
-// 取两页（0、18），按 id 去重后通常有 30–36 首；cursor 是原始槽位，不是去重后的条数。
+let dailyRoundOffset = 0;
+let dailyPreviousBatch = [];
+
+// 发现页 For You 的「More」：官方猜你喜欢每个请求最多给 18 首。按 cursor 并行
+// 取两页，按 id 去重后通常有 30–36 首；换一批时传入上一批曲目与递增轮次以触发服务端轮换。
 async function dailyTracks(force) {
   if (!force && dailyCache && Date.now() - dailyCache.at < STATION_CACHE_MS) {
     return dailyCache.tracks;
   }
   if (dailyPending) return dailyPending;
+  const baseRound = dailyRoundOffset;
+  const prevPending = dailyPreviousBatch.slice(-18);
   const request = (async () => {
     const tracks = [];
     const seen = {};
@@ -1692,12 +1699,19 @@ async function dailyTracks(force) {
       const requests = [];
       for (let i = 0; i < DAILY_PAGES; i++) {
         requests.push(
-          songTabPage(String(DAILY_PAGE_SIZE * i), i + 1).catch(() => ({ tracks: [] }))
+          songTabPage(
+            String(DAILY_PAGE_SIZE * (baseRound + i)),
+            baseRound + i + 1,
+            prevPending.length ? prevPending : undefined
+          ).catch(() => ({ tracks: [] }))
         );
       }
       for (const page of await Promise.all(requests)) add(page);
     } catch (error) {
       // 保留已拿到的；全部失败则让 More 页显示空状态。
+    }
+    if (tracks.length) {
+      dailyPreviousBatch = tracks.slice(0, 18);
     }
     dailyCache = { at: Date.now(), tracks };
     return tracks;
@@ -1996,6 +2010,7 @@ export async function refreshBrowse({ page }) {
   }
   if (name === "discover:for-you") {
     dailyCache = null;
+    dailyRoundOffset += DAILY_PAGES;
     return browse({ page: "discover" });
   }
   if (name === "discover:radio") {
@@ -2006,8 +2021,10 @@ export async function refreshBrowse({ page }) {
     discoverRadioCache = null;
   } else if (name === "daily") {
     dailyCache = null;
+    dailyRoundOffset += DAILY_PAGES;
   } else if (name === "discover") {
     dailyCache = null;
+    dailyRoundOffset += DAILY_PAGES;
     discoverRadioCache = null;
   } else if (name === "playlists") {
     discoverCache = null;
