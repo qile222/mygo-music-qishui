@@ -1036,7 +1036,15 @@ function toPlaylist(raw, options) {
   const mineID = opts.profileID === undefined ? profileID() : opts.profileID;
   const type = Number(raw.type);
   const mine = !!mineID && ownerID === mineID;
-  return {
+  const artistBrief =
+    owner &&
+    owner.user_artist_info &&
+    owner.user_artist_info.artist_brief;
+  const ownerArtistID =
+    artistBrief && artistBrief.id !== undefined && artistBrief.id !== null
+      ? String(artistBrief.id)
+      : "";
+  const out = {
     id: raw.id === undefined || raw.id === null ? "" : String(raw.id),
     name: raw.title || raw.name || "",
     imageUrl: coverURL(raw.url_cover),
@@ -1048,6 +1056,9 @@ function toPlaylist(raw, options) {
     fixed: mine && ORDINARY_PLAYLIST_TYPES.indexOf(type) < 0,
     saved: opts.saved === true || (!mine && !!(raw.state && raw.state.is_collected)),
   };
+  if (mine) out.ownerPage = "me";
+  else if (ownerArtistID) out.ownerArtist = ownerArtistID;
+  return out;
 }
 
 function isLikedPlaylistRaw(raw) {
