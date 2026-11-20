@@ -342,7 +342,9 @@ export function validateAccount(v, r, path) {
   reqStr(v, "name", r, path, true);
   optStr(v, "imageUrl", r, path);
   optStr(v, "page", r, path);
-  checkFields(v, ["id", "name", "imageUrl", "page"], r, path);
+  optBool(v, "vip", r, path);
+  optStr(v, "badge", r, path);
+  checkFields(v, ["id", "name", "imageUrl", "page", "vip", "badge"], r, path);
 }
 
 export function validateSection(v, r, path) {

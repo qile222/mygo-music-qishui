@@ -1935,9 +1935,15 @@ export async function browse({ page }) {
       playlists: ownPlaylists,
       empty: tr("Playlists you create will show here"),
     });
+    const meSubtitle =
+      profile.vip && profile.badge
+        ? tr("Qishui Music") + " · " + profile.badge
+        : profile.vip
+          ? tr("Qishui Music") + " · VIP"
+          : tr("Qishui Music");
     return {
       title: profile.name || tr("My Page"),
-      subtitle: tr("Qishui Music"),
+      subtitle: meSubtitle,
       imageUrl: profile.imageUrl || "",
       sections,
     };
@@ -2275,6 +2281,44 @@ async function completeQRCodeLogin(jar, redirectURL) {
   return hasLoginCookie(jar);
 }
 
+function resolveQishuiVip(data, previousProfile) {
+  const info = (data && data.my_info) || {};
+  const vipInfo =
+    (info.vip_info && typeof info.vip_info === "object" ? info.vip_info : null) ||
+    (data && data.vip_info && typeof data.vip_info === "object" ? data.vip_info : null);
+  const stage = String(
+    (vipInfo && (vipInfo.vip_stage || vipInfo.vip_type || vipInfo.level_name)) ||
+      info.vip_stage ||
+      info.vip_type ||
+      ""
+  ).toLowerCase();
+  const expireSec = Number(
+    (vipInfo && (vipInfo.expire_time || vipInfo.vip_expire_time)) ||
+      info.vip_expire_time ||
+      0
+  );
+  const notExpired = !expireSec || expireSec * 1000 > Date.now();
+  const explicitVip =
+    info.is_vip === true ||
+    info.is_vip === 1 ||
+    info.vip_status === 1 ||
+    (vipInfo && (vipInfo.is_vip === true || vipInfo.is_vip === 1 || vipInfo.status === 1)) ||
+    (stage !== "" && stage !== "0" && stage !== "none" && stage !== "normal");
+  const explicitFree =
+    info.is_vip === false ||
+    info.is_vip === 0 ||
+    info.vip_status === 0 ||
+    (vipInfo && (vipInfo.is_vip === false || vipInfo.is_vip === 0));
+  if (explicitVip && notExpired) {
+    const isSvip = stage.indexOf("svip") >= 0 || stage === "2" || info.is_svip === true;
+    return { vip: true, badge: isSvip ? "SVIP" : "VIP" };
+  }
+  if (!explicitFree && previousProfile && previousProfile.vip === true) {
+    return { vip: true, badge: previousProfile.badge || "VIP" };
+  }
+  return { vip: false, badge: "" };
+}
+
 async function fetchProfile(jar) {
   const data = await pc("/luna/pc/me", { jar });
   const info = data.my_info;
@@ -2284,12 +2328,20 @@ async function fetchProfile(jar) {
     avatarURL(info.medium_avatar_url, 200) ||
     avatarURL(info.avatar_url, 200) ||
     avatarURL(info.thumb_avatar_url, 200);
-  return {
+  const prev = currentSession().profile;
+  const prevSameUser = prev && String(prev.id || "") === String(info.id) ? prev : null;
+  const vipMeta = resolveQishuiVip(data, prevSameUser);
+  const out = {
     id: String(info.id),
     name: info.nickname || info.name || tr("Qishui user"),
     imageUrl,
     page: "me",
   };
+  if (vipMeta.vip) {
+    out.vip = true;
+    out.badge = vipMeta.badge || "VIP";
+  }
+  return out;
 }
 
 // 扫码登录的轮询细节：官方 SDK 至少每 2 秒查一次，确认后还要等 session
@@ -4610,9 +4662,31 @@ async function trackV2(trackID, force) {
   return { data, fromCache: false };
 }
 
+function recordVipEntitlementFromPlayback(track, isPreview) {
+  const label = track && track.label_info;
+  if (!label || label.only_vip_playable !== true || (track && track.limited_free_info)) return;
+  const active = currentSession();
+  if (!active || !active.signedIn || !active.profile) return;
+  if (!isPreview) {
+    if (active.profile.vip !== true) {
+      active.profile.vip = true;
+      active.profile.badge = active.profile.badge || "VIP";
+      persistSession();
+    }
+  } else if (active.profile.vip === true) {
+    delete active.profile.vip;
+    delete active.profile.badge;
+    persistSession();
+  }
+}
+
 async function deliverFromTrackV2(data, order, trackID, requested, run) {
   const info = playbackOf(data);
-  if (!info.videos.length || servedPreview(info.track, info.model)) return null;
+  const preview = servedPreview(info.track, info.model);
+  if (info.videos.length) {
+    recordVipEntitlementFromPlayback(info.track, preview);
+  }
+  if (!info.videos.length || preview) return null;
   const picked = pickVideo(info.videos, order);
   if (!picked) return null;
   const volume = volumeOf(info.model);
